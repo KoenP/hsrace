@@ -1,0 +1,38 @@
+module RenderTrack where
+
+---------------------------------------------------------------------------------
+import Graphics.Gloss hiding (rotate, Rotate)
+import qualified Graphics.Gloss as G
+import Graphics.Gloss.Geometry.Angle (degToRad, radToDeg)
+import Data.Maybe (isJust, maybeToList)
+import Control.Lens (over, _1)
+
+import Vec
+import Track
+---------------------------------------------------------------------------------
+
+-- renderTrack' :: Vec -> Track -> Picture
+-- renderTrack' pt =
+--   pictures
+--   . ((translate (-100) (-100) . scale 0.2 0.2 . color white . text . show . roundVec) pt:)
+--   . map (\(TrackSegment pg) ->
+--            let pt' = closestPointOnConvexPolygon pt pg
+--            in pictures $ [ color col $ polygon $ map (applyVec (,)) pg
+--                          , color cyan $ applyVec translate pt' $ circle 5
+--                          , (translate (-100) (-170) . scale 0.2 0.2 . color white . text . show . roundVec) pt'
+--                          ])
+--                        -- ++ (maybeToList $ fmap
+--                        --                   (\p -> color cyan $ applyVec translate p $ circle 5)
+--                        --                   pt'))
+--   where 
+--         col  = blue
+
+renderTrack :: Track -> Picture
+renderTrack =
+  color (dim $ dim azure)
+  . pictures
+  . map (\(TrackSegment vs) -> polygon $ map toTup vs)
+
+-- Rotate picture clockwise, given an angle in radians.
+rotatePic :: Float -> Picture -> Picture
+rotatePic = G.rotate . radToDeg

@@ -1,0 +1,45 @@
+name:                hsrace2
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/githubuser/hsrace2#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Author name here
+maintainer:          example@example.com
+copyright:           2021 Author name here
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+extra-source-files:  README.md
+
+executable hsrace2
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  other-modules:       Track,
+                       RenderTrack,
+                       Vec,
+                       Angle,
+                       Editor,
+                       Input,
+                       Game,
+                       State
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+  extensions:          FlexibleInstances,
+                       FlexibleContexts,
+                       MultiParamTypeClasses,
+                       TemplateHaskell,
+                       FunctionalDependencies,
+                       DeriveGeneric,
+                       DeriveFunctor,
+                       DeriveFoldable
+  ghc-options:         -threaded -O
+  build-depends:       base >= 4.7 && < 5,
+                       gloss,
+                       ConfigFile,
+                       linear,
+                       lens,
+                       vector,
+                       containers,
+                       array
