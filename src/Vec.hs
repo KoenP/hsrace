@@ -122,7 +122,7 @@ normalize v = let norm_v = norm v in if nearZero norm_v then zeroVec else  v ^/ 
 -- applyVec :: (Real a, Fractional c) => (c -> c -> b) -> (Vec a -> b)
 -- applyVec g (V2 x y) = g (realToFrac x) (realToFrac y)
 
--- Rotate a vector clockwise, given an angle in radians.
+-- Rotate a vector CLOCKWISE, given an angle in radians.
 rotVec :: Angle -> Vec w -> Vec w
 rotVec (Radians theta) (Vec x y) = Vec
   (x * cos theta' - y * sin theta')

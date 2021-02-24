@@ -1,14 +1,15 @@
 module RenderTrack where
 
 ---------------------------------------------------------------------------------
-import Graphics.Gloss hiding (rotate, Rotate)
+import Vec
+import Track
+import Angle hiding (radToDeg)
+
+import Graphics.Gloss
 import qualified Graphics.Gloss as G
 import Graphics.Gloss.Geometry.Angle (degToRad, radToDeg)
 import Data.Maybe (isJust, maybeToList)
 import Control.Lens (over, _1)
-
-import Vec
-import Track
 ---------------------------------------------------------------------------------
 
 -- renderTrack' :: Vec -> Track -> Picture
@@ -36,3 +37,9 @@ renderTrack =
 -- Rotate picture clockwise, given an angle in radians.
 rotatePic :: Float -> Picture -> Picture
 rotatePic = G.rotate . radToDeg
+
+applyViewPort :: ViewPort -> Picture -> Picture
+applyViewPort (ViewPort (Vec x y) (Radians rot) zoom)
+  = scale (realToFrac zoom) (realToFrac zoom)
+  . rotate (realToFrac (- rot))
+  . translate (realToFrac (-x)) (realToFrac (-y))

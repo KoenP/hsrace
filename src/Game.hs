@@ -6,6 +6,7 @@ import Angle
 import Track
 import Input
 import State
+import RenderTrack
 
 import Graphics.Gloss
 
@@ -31,6 +32,22 @@ updateWorld dt (Input keysDown _ (Vec mouseDx _)) (GameState pos0 vel0 rot0)
     pos1 = pos0 ^+^ vel1
     acc  = if accelerating then rotVec rot1 (Vec 0 k_acceleration) else zeroVec
     vel1 = vel0 ^+^ acc ^+^ drag
+
+renderGameState :: GameState -> Picture
+renderGameState (GameState (Vec x y) _ rot) =
+  let world = rotate (negate $ realToFrac $ _unDegrees $ radToDeg rot)
+            $ translate (- realToFrac x) (- realToFrac y)
+            $ renderTrack testTrack
+  in pictures [world, playerPic]
+
+isoscelesTrianglePath :: Float -> Float -> Path
+isoscelesTrianglePath base height = [ (-base/2, -height/3)
+                                    , ( base/2, -height/3)
+                                    , ( 0     ,  height*2/3)
+                                    ]
+playerPic :: Picture
+playerPic = (color red . polygon) (isoscelesTrianglePath 14 23)
+
 
 k_acceleration, k_drag :: Double
 k_acceleration = 0.2

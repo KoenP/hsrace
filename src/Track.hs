@@ -3,6 +3,7 @@ module Track where
 --------------------------------------------------------------------------------
 import Vec
 import Angle
+import Polar
 
 import Control.Lens (makeLenses, over, set, view)
 import Data.Function (on)
@@ -10,7 +11,6 @@ import Data.Coerce (coerce)
 import Data.List
 --------------------------------------------------------------------------------
 
-data Polar = Polar {_pRad :: Double, _pTheta :: Radians Double } deriving (Show, Eq)
 newtype TrackDescription = TrackDescription { _tdPs :: [Polar] } deriving (Show)
 newtype TrackSegment = TrackSegment { _tsShape :: [Vec World] } deriving (Show, Eq)
 type Track = [TrackSegment]
@@ -40,13 +40,24 @@ constructTrack desc = zipWith3
      (\v -> rotVec totalRotation v ^+^ offset)
      (constructTrackSegment 300 r theta1 theta2)
 
-
-testTrackD = TrackDescription $ [Polar 100 0.5]
---TrackDescription $ map (Polar 100) [pi / 2, -pi / 3, pi / 2, 0]
-  where len = 100
-
 testTrack :: Track
-testTrack = constructTrack testTrackD
+testTrack = fromWaypoints [ zeroVec
+                          , Vec 0 1000
+                          , Vec 1000 1000
+                          , Vec 2000 2000
+                          ]
+
+-- testTrack :: Track
+-- testTrack = constructTrack
+--           $ TrackDescription
+--           [ Polar 1400 hardRight
+--           , Polar 600 hardLeft
+--           , Polar 800 hardRight
+--           ]
+--   where
+--     hardRight = pi / 2
+--     hardLeft = -pi / 2
+
 
 trackWaypoints :: TrackDescription -> [Vec World]
 trackWaypoints (TrackDescription ps) = map fst $ scanl
@@ -82,11 +93,6 @@ transformTrackSegment f = over tsShape (map f)
 zipperFromTrack :: Track -> TrackZipper
 zipperFromTrack t = TrackZipper [] t
 
--- Transforms polar coordinates to a cartesian system where an angle of
--- 0 radians corresponds to a vector pointing straight up (x component equal
--- to 0), and a positive angle indicates clockwise rotation.
-polarToCartesian :: Polar -> Vec World
-polarToCartesian (Polar r theta) = Vec (r * rsin theta) (r * rcos theta)
 -- TODO: move collision stuff to its own module or something
 
 -- A list of vertices describing a polygon.
@@ -152,3 +158,35 @@ convexPolygonShadow shape onto = (minimum projection, maximum projection)
 
 testShape :: [Vec World]
 testShape = [Vec 0 0, Vec 0 1, Vec 2 1, Vec 1 1]
+
+--------------------------------------------------------------------------------
+
+fromWaypoints :: [Vec World] -> Track
+fromWaypoints waypoints
+  = zipWith6 mkSeg waypoints rotations (repeat 300) lengths thetas (tail thetas)
+  where
+    thetas  = turnAngles waypoints
+    (lengths, rotations) = unzip $ segmentLengthsAndRotations waypoints
+    mkSeg :: Vec World -> Angle -> Double -> Double -> Angle -> Angle -> TrackSegment
+    mkSeg offset rotation width length theta1 theta2
+      = transformTrackSegment (\v -> rotVec rotation v ^+^ offset)
+      $ constructTrackSegment width length theta1 theta2
+    
+segmentLengthsAndRotations :: [Vec World] -> [(Double, Angle)]
+segmentLengthsAndRotations [] = []
+segmentLengthsAndRotations waypoints
+  = zipWith
+    (\u v -> let dv = v ^-^ u in (norm dv, vecAngle dv))
+    waypoints
+    (tail waypoints)
+
+turnAngles :: [Vec World] -> [Radians Double]
+turnAngles (wp1:wp2:wps) = 0 : zipWith3 turnAngle (wp1:wp2:wps) (wp2:wps) wps ++ [0]
+turnAngles wps = map (const 0) wps
+
+-- | Compute the turn angle of three consecutive waypoints.
+turnAngle :: Vec w -> Vec w -> Vec w -> Radians Double 
+turnAngle u v w = let Polar _ theta_wv = cartesianToPolar (rotVec (-theta_vu) (w ^-^ v))
+                  in theta_wv
+  where
+    Polar _ theta_vu = cartesianToPolar (v ^-^ u)
