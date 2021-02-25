@@ -23,7 +23,7 @@ import Data.Array
 main :: IO ()
 main = do
   -- keymap <- constructKeyMap "keybindings.cfg"
-  play FullScreen black 60 ([], emptyInput, Left emptyGameState) render registerEvent (glossUpdate update)
+  play (InWindow "test" (800,600) (800,600)) black 60 ([], emptyInput, Left emptyGameState) render registerEvent (glossUpdate update)
 
 update :: Double -> Input -> ProgramState -> ProgramState
 update dt input (Left gameState   ) = updateWorld dt input gameState

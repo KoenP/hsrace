@@ -10,7 +10,6 @@ import State
 import Polar
 
 import Graphics.Gloss
-import Graphics.Gloss.Interface.IO.Game
 
 import Control.Lens
 import qualified Data.Set as Set
@@ -27,8 +26,11 @@ updateEditor :: Double -> Input -> EditorState -> ProgramState
 updateEditor _ (Input _ keysTriggered _) _
   | Mode `Set.member` keysTriggered
   = Left emptyGameState
-updateEditor _ (Input keysDown keysTriggered mouseMovement) (EditorState viewPort0 curTrack0 pointerPos0)
-  = Right (EditorState viewPort1 curTrack1 pointerPos1)
+updateEditor
+  _
+  (Input keysDown keysTriggered mouseMovement)
+  (EditorState viewPort0 trackState0 pointerPos0)
+  = Right (EditorState viewPort1 trackState1 pointerPos1)
   where
     -- Viewport
     dv        = 10 *^ direction keysDown
@@ -37,20 +39,34 @@ updateEditor _ (Input keysDown keysTriggered mouseMovement) (EditorState viewPor
     viewPort1 = updateViewPort dv drot dzoom viewPort0
     pointerPos1 = pointerPos0 ^+^ (0.1 *^ ignoreCoordinateSystem mouseMovement)
   
-    curTrack1 =
-      if Accelerating `Set.member` keysTriggered
-      then windowCoordsToWorldCoords viewPort1 pointerPos1 : curTrack0
-      else curTrack0
+    trackState1
+      | Accelerating `Set.member` keysTriggered
+      = updateTrackState trackState0 (windowCoordsToWorldCoords viewPort1 pointerPos1)
+      | otherwise
+      = trackState0
+
+updateTrackState :: EditorTrackState -> Vec World -> EditorTrackState
+updateTrackState (ETS cache waypoints) newWaypoint
+  | length waypoints == 2 = ETS [last $ fromWaypoints (newWaypoint : waypoints)] (newWaypoint : waypoints)
+  | length waypoints < 3  = ETS []                        (newWaypoint : waypoints)
+  | otherwise             = ETS (newCacheSegment : cache) (newWaypoint : waypoints)
+  where
+    newCacheSegment = fromWaypoints (newWaypoint : take 3 waypoints) !! 1
 
 renderEditorState :: EditorState -> Picture
-renderEditorState (EditorState viewPort waypointsR mousePos@(Vec ptrX ptrY)) = 
+renderEditorState (EditorState viewPort (ETS cache waypointsR) mousePos@(Vec ptrX ptrY)) = 
   let
-    world = renderTrack
-          $ fromWaypoints
-          $ windowCoordsToWorldCoords viewPort mousePos : waypointsR
+    finalSegments = fromWaypoints
+                  $ windowCoordsToWorldCoords viewPort mousePos : takeAtMost 3 waypointsR
+    renderedTrack = renderTrack (finalSegments ++ cache)
     pointer = translate (realToFrac ptrX) (realToFrac ptrY) $ color white $ circle 4
   in
-    pictures [applyViewPort viewPort world, pointer]
+    pictures [applyViewPort viewPort renderedTrack, pointer]
+
+takeAtMost :: Int -> [a] -> [a]
+takeAtMost 0 _      = []
+takeAtMost _ []     = []
+takeAtMost n (x:xs) = x : takeAtMost (n-1) xs
 
 extractTrackDescription :: [(Polar, Vec World, Radians Double)] -> TrackDescription
 extractTrackDescription = TrackDescription . reverse . map (\(p,_,_) -> p)

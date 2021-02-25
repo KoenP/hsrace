@@ -11,6 +11,7 @@ import Data.Set (Set)
 import Data.List
 import Data.Ix
 import Control.Lens
+import Debug.Trace
 --------------------------------------------------------------------------------
 
 data Dir = DirUp | DirDown | DirLeft | DirRight
@@ -31,7 +32,7 @@ emptyInput = Input Set.empty Set.empty zeroVec
 
 constructInput :: Input -> [Event] -> Input
 constructInput (Input down _ _) events
-  = Input ((down Set.\\ keysReleased) `Set.union` keysTriggered) keysTriggered mouseMovement
+  = Input ((down `Set.union` keysTriggered) Set.\\ keysReleased) keysTriggered mouseMovement
   where
     keysTriggered, keysReleased :: Set GameKey
     mouseMovement :: Vec Window
