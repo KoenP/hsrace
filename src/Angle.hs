@@ -53,6 +53,9 @@ rsin = radiansApply sin
 rcos :: Floating a => Radians a -> a
 rcos = radiansApply cos
 
+rtan :: Floating a => Radians a -> a
+rtan = radiansApply tan
+
 toPicAngle :: Angle -> PicAngle
 toPicAngle = fmap realToFrac . radToDeg
 

@@ -27,48 +27,86 @@ makeLenses ''TrackDescription
 makeLenses ''TrackSegment
 makeLenses ''TrackZipper
 
-constructTrack :: TrackDescription -> Track
-constructTrack desc = zipWith3
-  f
-  (_tdPs desc)
-  (0 : map (_pTheta) (_tdPs desc))
-  (zip (trackWaypoints desc) (trackSegmentRotations desc))
+--------------------------------------------------------------------------------
+-- NEW TRACK CONSTRUCTION
+--------------------------------------------------------------------------------
+
+testje :: [(Vec World, Double)]
+testje = [(zeroVec, 30), (Vec 0 200, 40), (Vec 200 400, 60), (Vec 400 400, 10), (Vec 400 0, 30)]
+-- testje = [(zeroVec, 50), (Vec 0 300, 100), (Vec 0 500, 100), (Vec 50 600, 100)]
+
+trackCorners :: [(Vec World, Double)] -> ([Vec World], [Vec World])
+trackCorners waypoints = unzip $ zipWith3 waypointCorners waypoints (0 : hdgs) (nag hdgs)
   where
-    f :: Polar -> Radians Double -> (Vec World, Radians Double) -> TrackSegment
-    f (Polar r theta2) theta1 (offset, totalRotation) =
-     transformTrackSegment
-     (\v -> rotVec totalRotation v ^+^ offset)
-     (constructTrackSegment 300 r theta1 theta2)
+    hdgs = headings waypoints
 
-testTrack :: Track
-testTrack = fromWaypoints [ zeroVec
-                          , Vec 0 1000
-                          , Vec 1000 1000
-                          , Vec 2000 2000
-                          ]
+headings :: [(Vec World, Double)] -> [Angle]
+headings waypoints = zipWith (\(v1,_) (v2,_) -> vecAngle (v2 ^-^ v1)) waypoints (tail waypoints)
+  
+waypointCorners :: (Vec World, Double) -> Angle -> Angle -> (Vec World, Vec World)
+waypointCorners (v,rad) headingBefore headingAfter
+  = (relocate (Vec (-rad) h) , relocate (Vec rad 0))
+  where
+    h         = 2 * rad / rtan alpha
+    turnAngle = headingAfter - headingBefore
+    alpha     = (pi - turnAngle) / 2
+    relocate  = (^+^ v) . rotVec headingBefore
 
--- testTrack :: Track
--- testTrack = constructTrack
---           $ TrackDescription
---           [ Polar 1400 hardRight
---           , Polar 600 hardLeft
---           , Polar 800 hardRight
---           ]
+v = Vec 0 200
+rad = 30
+before = 0
+after = pi/4
+ta = after - before
+alph = pi - ta / 2
+
+
+-- waypointCorners :: (Vec World, Double) -> Angle -> Angle -> (Vec World, Vec World)
+-- waypointCorners (v,rad) headingBefore headingAfter = (v ^-^ dv , v ^+^ dv)
 --   where
---     hardRight = pi / 2
---     hardLeft = -pi / 2
+--     turnAngle = headingAfter - headingBefore
+--     alpha     = - (pi - turnAngle) / 2
+--     dv        = rotVec headingBefore $ rad *^ Vec (rsin alpha) (rcos alpha)
 
+-- | Repeat the last thing mentioned endlessly.
+nag :: [a] -> [a]
+nag []      = []
+nag [x]    = repeat x
+nag (x:xs) = x : nag xs
+    
 
-trackWaypoints :: TrackDescription -> [Vec World]
-trackWaypoints (TrackDescription ps) = map fst $ scanl
-  (\(offset, orientation) polar ->
-      let v = polarToCartesian (set pTheta orientation polar)
-      in (offset ^+^ v, orientation + view pTheta polar))
-  (zeroVec, 0)
-  ps
+--------------------------------------------------------------------------------
+-- TRACK CONSTRUCTION
+--------------------------------------------------------------------------------
+fromWaypoints :: [Vec World] -> Track
+fromWaypoints waypoints
+  = zipWith6 mkSeg waypoints rotations (repeat 300) lengths thetas (tail thetas)
+  where
+    thetas  = turnAngles waypoints
+    (lengths, rotations) = unzip $ segmentLengthsAndRotations waypoints
+    mkSeg :: Vec World -> Angle -> Double -> Double -> Angle -> Angle -> TrackSegment
+    mkSeg offset rotation width length theta1 theta2
+      = transformTrackSegment (\v -> rotVec rotation v ^+^ offset)
+      $ constructTrackSegment width length theta1 theta2
+    
+segmentLengthsAndRotations :: [Vec World] -> [(Double, Angle)]
+segmentLengthsAndRotations [] = []
+segmentLengthsAndRotations waypoints
+  = zipWith
+    (\u v -> let dv = v ^-^ u in (norm dv, vecAngle dv))
+    waypoints
+    (tail waypoints)
 
-trackSegmentRotations :: TrackDescription -> [Radians Double]
-trackSegmentRotations (TrackDescription ps) = scanl (+) 0 (map _pTheta ps)
+turnAngles :: [Vec World] -> [Radians Double]
+turnAngles (wp1:wp2:wps) = 0 : zipWith3 turnAngle (wp1:wp2:wps) (wp2:wps) wps ++ [0]
+turnAngles wps = map (const 0) wps
+
+-- | Compute the turn angle of three consecutive waypoints.
+turnAngle :: Vec w -> Vec w -> Vec w -> Radians Double 
+turnAngle u v w = let Polar _ theta_wv = cartesianToPolar (rotVec (-theta_vu) (w ^-^ v))
+                  in theta_wv
+  where
+    Polar _ theta_vu = cartesianToPolar (v ^-^ u)
+
 
 -- Constructs a track segment given the width and length of the segment,
 -- as well as the angles with which it connects to its previous and its next segment.
@@ -87,13 +125,14 @@ constructTrackSegment width length theta1 theta2 =
     diff1 = width / 2 * tan (coerce theta1 / 2)
     diff2 = width / 2 * tan (coerce theta2 / 2)
 
-transformTrackSegment :: (Vec World -> Vec World) -> TrackSegment -> TrackSegment
-transformTrackSegment f = over tsShape (map f)
-
 zipperFromTrack :: Track -> TrackZipper
 zipperFromTrack t = TrackZipper [] t
 
 -- TODO: move collision stuff to its own module or something
+
+--------------------------------------------------------------------------------
+-- COLLISION DETECTION
+--------------------------------------------------------------------------------
 
 -- A list of vertices describing a polygon.
 -- Unchecked assumption: the vertices are listed in order,
@@ -159,34 +198,41 @@ convexPolygonShadow shape onto = (minimum projection, maximum projection)
 testShape :: [Vec World]
 testShape = [Vec 0 0, Vec 0 1, Vec 2 1, Vec 1 1]
 
+
+--------------------------------------------------------------------------------
+-- Probably junk
 --------------------------------------------------------------------------------
 
-fromWaypoints :: [Vec World] -> Track
-fromWaypoints waypoints
-  = zipWith6 mkSeg waypoints rotations (repeat 300) lengths thetas (tail thetas)
+constructTrack :: TrackDescription -> Track
+constructTrack desc = zipWith3
+  f
+  (_tdPs desc)
+  (0 : map (_pTheta) (_tdPs desc))
+  (zip (trackWaypoints desc) (trackSegmentRotations desc))
   where
-    thetas  = turnAngles waypoints
-    (lengths, rotations) = unzip $ segmentLengthsAndRotations waypoints
-    mkSeg :: Vec World -> Angle -> Double -> Double -> Angle -> Angle -> TrackSegment
-    mkSeg offset rotation width length theta1 theta2
-      = transformTrackSegment (\v -> rotVec rotation v ^+^ offset)
-      $ constructTrackSegment width length theta1 theta2
-    
-segmentLengthsAndRotations :: [Vec World] -> [(Double, Angle)]
-segmentLengthsAndRotations [] = []
-segmentLengthsAndRotations waypoints
-  = zipWith
-    (\u v -> let dv = v ^-^ u in (norm dv, vecAngle dv))
-    waypoints
-    (tail waypoints)
+    f :: Polar -> Radians Double -> (Vec World, Radians Double) -> TrackSegment
+    f (Polar r theta2) theta1 (offset, totalRotation) =
+     transformTrackSegment
+     (\v -> rotVec totalRotation v ^+^ offset)
+     (constructTrackSegment 300 r theta1 theta2)
 
-turnAngles :: [Vec World] -> [Radians Double]
-turnAngles (wp1:wp2:wps) = 0 : zipWith3 turnAngle (wp1:wp2:wps) (wp2:wps) wps ++ [0]
-turnAngles wps = map (const 0) wps
+testTrack :: Track
+testTrack = fromWaypoints [ zeroVec
+                          , Vec 0 1000
+                          , Vec 1000 1000
+                          , Vec 2000 2000
+                          ]
 
--- | Compute the turn angle of three consecutive waypoints.
-turnAngle :: Vec w -> Vec w -> Vec w -> Radians Double 
-turnAngle u v w = let Polar _ theta_wv = cartesianToPolar (rotVec (-theta_vu) (w ^-^ v))
-                  in theta_wv
-  where
-    Polar _ theta_vu = cartesianToPolar (v ^-^ u)
+trackWaypoints :: TrackDescription -> [Vec World]
+trackWaypoints (TrackDescription ps) = map fst $ scanl
+  (\(offset, orientation) polar ->
+      let v = polarToCartesian (set pTheta orientation polar)
+      in (offset ^+^ v, orientation + view pTheta polar))
+  (zeroVec, 0)
+  ps
+
+trackSegmentRotations :: TrackDescription -> [Radians Double]
+trackSegmentRotations (TrackDescription ps) = scanl (+) 0 (map _pTheta ps)
+
+transformTrackSegment :: (Vec World -> Vec World) -> TrackSegment -> TrackSegment
+transformTrackSegment f = over tsShape (map f)
