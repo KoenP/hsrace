@@ -15,18 +15,20 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 --------------------------------------------------------------------------------
 
-
 updateWorld :: Double -> Input -> GameState -> ProgramState
 updateWorld dt (Input _ keysTriggered _) _ | Mode `Set.member` keysTriggered
   = Right emptyEditorState
-updateWorld dt (Input keysDown _ (Vec mouseDx _)) (GameState pos0 vel0 rot0)
-  = Left (GameState pos1 vel1 rot1)
+updateWorld
+  dt
+  (Input keysDown _ (Vec mouseDx _))
+  (GameState pos0 vel0 rot0 trackState track)
+  = Left (GameState pos1 vel1 rot1 trackState track)
   where
     accelerating = Accelerating `Set.member` keysDown
-    
-    speed0 = norm vel0
+
+    speed0   = norm vel0
     moveDir0 = normalize vel0
-    drag = (- k_drag * speed0 ** 2) *^ moveDir0
+    drag     = (- k_drag * speed0 ** 2) *^ moveDir0
 
     rot1 = rot0 + Radians (mouseSensitivity * mouseDx)
     pos1 = pos0 ^+^ vel1
@@ -34,11 +36,21 @@ updateWorld dt (Input keysDown _ (Vec mouseDx _)) (GameState pos0 vel0 rot0)
     vel1 = vel0 ^+^ acc ^+^ drag
 
 renderGameState :: GameState -> Picture
-renderGameState (GameState (Vec x y) _ rot) =
-  let world = rotate (negate $ realToFrac $ _unDegrees $ radToDeg rot)
-            $ translate (- realToFrac x) (- realToFrac y)
-            $ renderTrack testTrack
-  in pictures [world, playerPic]
+renderGameState (GameState (Vec x y) _ rot trackState track) =
+  let
+    transform = rotate (negate $ realToFrac $ _unDegrees $ radToDeg rot)
+              . translate (- realToFrac x) (- realToFrac y)
+
+    world = transform $ renderTrack (reverse track)
+
+
+    (leftCorners, rightCorners) = view ts_trackCorners trackState
+    cornerCircles = pictures
+      $ map (renderPoint red) (revKeepReversed leftCorners) ++ map (renderPoint green) (revKeepReversed rightCorners)
+
+    wps = transform $ pictures $ map (renderPoint white . fst) (revKeepReversed $ view ts_waypointsR trackState)
+
+  in pictures [world, playerPic, transform cornerCircles, wps]
 
 isoscelesTrianglePath :: Float -> Float -> Path
 isoscelesTrianglePath base height = [ (-base/2, -height/3)

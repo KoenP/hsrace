@@ -35,7 +35,8 @@ executable hsrace2
                        FunctionalDependencies,
                        DeriveGeneric,
                        DeriveFunctor,
-                       DeriveFoldable
+                       DeriveFoldable,
+                       TupleSections
   ghc-options:         -threaded -O
   build-depends:       base >= 4.7 && < 5,
                        gloss,

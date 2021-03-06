@@ -9,6 +9,7 @@ import Control.Lens (makeLenses, over, set, view)
 import Data.Function (on)
 import Data.Coerce (coerce)
 import Data.List
+import Debug.Trace
 --------------------------------------------------------------------------------
 
 newtype TrackDescription = TrackDescription { _tdPs :: [Polar] } deriving (Show)
@@ -30,27 +31,36 @@ makeLenses ''TrackZipper
 --------------------------------------------------------------------------------
 -- NEW TRACK CONSTRUCTION
 --------------------------------------------------------------------------------
+type Waypoint = (Vec World, Double)
 
-testje :: [(Vec World, Double)]
+testje :: [Waypoint]
 testje = [(zeroVec, 30), (Vec 0 200, 40), (Vec 200 400, 60), (Vec 400 400, 10), (Vec 400 0, 30)]
 -- testje = [(zeroVec, 50), (Vec 0 300, 100), (Vec 0 500, 100), (Vec 50 600, 100)]
 
-trackCorners :: [(Vec World, Double)] -> ([Vec World], [Vec World])
+fromWaypoints' :: [Waypoint] -> Track
+fromWaypoints' = trackFromCorners . trackCorners
+
+trackFromCorners :: ([Vec World] , [Vec World]) -> Track
+trackFromCorners (l1:l2:l , r1:r2:r)
+  = TrackSegment [l1,l2,r2,r1] : trackFromCorners (l2:l , r2:r)
+trackFromCorners _ = []
+
+trackCorners :: [Waypoint] -> ([Vec World], [Vec World])
 trackCorners waypoints = unzip $ zipWith3 waypointCorners waypoints (0 : hdgs) (nag hdgs)
   where
     hdgs = headings waypoints
 
-headings :: [(Vec World, Double)] -> [Angle]
+headings :: [Waypoint] -> [Angle]
 headings waypoints = zipWith (\(v1,_) (v2,_) -> vecAngle (v2 ^-^ v1)) waypoints (tail waypoints)
   
-waypointCorners :: (Vec World, Double) -> Angle -> Angle -> (Vec World, Vec World)
+waypointCorners :: Waypoint -> Angle -> Angle -> (Vec World, Vec World)
 waypointCorners (v,rad) headingBefore headingAfter
-  = (relocate (Vec (-rad) h) , relocate (Vec rad 0))
+  = (relocate (Vec (-rad) hHalved) , relocate (Vec rad (-hHalved)))
   where
-    h         = 2 * rad / rtan alpha
-    turnAngle = headingAfter - headingBefore
-    alpha     = (pi - turnAngle) / 2
-    relocate  = (^+^ v) . rotVec headingBefore
+    hHalved         = rad / rtan alpha
+    turnAngle       = headingAfter - headingBefore
+    alpha           = (pi - turnAngle) / 2
+    relocate        = (^+^ v) . rotVec headingBefore
 
 v = Vec 0 200
 rad = 30
@@ -217,11 +227,11 @@ constructTrack desc = zipWith3
      (constructTrackSegment 300 r theta1 theta2)
 
 testTrack :: Track
-testTrack = fromWaypoints [ zeroVec
-                          , Vec 0 1000
-                          , Vec 1000 1000
-                          , Vec 2000 2000
-                          ]
+testTrack = fromWaypoints' testTrackWaypoints
+                            
+testTrackWaypoints :: [Waypoint]
+testTrackWaypoints = [ (zeroVec,w) , (Vec 0 1000,w) , (Vec 1000 1000,w/2), (Vec 1300 600, w), (Vec 1900 1000, w) {-, Vec 2000 2000-} ]
+  where w = 200
 
 trackWaypoints :: TrackDescription -> [Vec World]
 trackWaypoints (TrackDescription ps) = map fst $ scanl

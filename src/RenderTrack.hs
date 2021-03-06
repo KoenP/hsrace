@@ -12,27 +12,15 @@ import Data.Maybe (isJust, maybeToList)
 import Control.Lens (over, _1)
 ---------------------------------------------------------------------------------
 
--- renderTrack' :: Vec -> Track -> Picture
--- renderTrack' pt =
---   pictures
---   . ((translate (-100) (-100) . scale 0.2 0.2 . color white . text . show . roundVec) pt:)
---   . map (\(TrackSegment pg) ->
---            let pt' = closestPointOnConvexPolygon pt pg
---            in pictures $ [ color col $ polygon $ map (applyVec (,)) pg
---                          , color cyan $ applyVec translate pt' $ circle 5
---                          , (translate (-100) (-170) . scale 0.2 0.2 . color white . text . show . roundVec) pt'
---                          ])
---                        -- ++ (maybeToList $ fmap
---                        --                   (\p -> color cyan $ applyVec translate p $ circle 5)
---                        --                   pt'))
---   where 
---         col  = blue
-
 renderTrack :: Track -> Picture
 renderTrack =
   color (dim $ dim azure)
   . pictures
   . map (\(TrackSegment vs) -> polygon $ map toTup vs)
+
+renderPoint :: Color -> Vec World -> Picture
+renderPoint col (Vec x y)
+  = color col $ translate (realToFrac x) (realToFrac y) (circle 7)
 
 -- Rotate picture clockwise, given an angle in radians.
 rotatePic :: Float -> Picture -> Picture
