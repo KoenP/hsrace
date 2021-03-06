@@ -62,21 +62,6 @@ waypointCorners (v,rad) headingBefore headingAfter
     alpha           = (pi - turnAngle) / 2
     relocate        = (^+^ v) . rotVec headingBefore
 
-v = Vec 0 200
-rad = 30
-before = 0
-after = pi/4
-ta = after - before
-alph = pi - ta / 2
-
-
--- waypointCorners :: (Vec World, Double) -> Angle -> Angle -> (Vec World, Vec World)
--- waypointCorners (v,rad) headingBefore headingAfter = (v ^-^ dv , v ^+^ dv)
---   where
---     turnAngle = headingAfter - headingBefore
---     alpha     = - (pi - turnAngle) / 2
---     dv        = rotVec headingBefore $ rad *^ Vec (rsin alpha) (rcos alpha)
-
 -- | Repeat the last thing mentioned endlessly.
 nag :: [a] -> [a]
 nag []      = []
