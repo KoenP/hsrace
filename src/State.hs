@@ -55,6 +55,7 @@ data TrackState = TS
   , _ts_trackCorners :: (Rev (Vec World), Rev (Vec World)) -- track corners in reverse order (TODO check whether they are)
   , _ts_waypointsR   :: Rev Waypoint -- waypoints in reverse order
   }
+  deriving (Show)
 makeLenses 'TS
 
 trackStateFromWaypoints :: [Waypoint] -> TrackState

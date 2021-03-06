@@ -29,7 +29,7 @@ main = do
   
   -- keymap <- constructKeyMap "keybindings.cfg"
   playIO
-    FullScreen
+    (InWindow "hsrace" (800,600) (800,600))
     black
     60
     ([], emptyInput, Left (initialGameState trackState))

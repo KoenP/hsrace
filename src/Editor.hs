@@ -14,6 +14,7 @@ import Graphics.Gloss
 import Control.Lens
 import qualified Data.Set as Set
 import Data.Bifunctor
+import Debug.Trace
 --------------------------------------------------------------------------------
 
 data EditorInput = EditorInput
@@ -77,10 +78,11 @@ updateTrackState (TS segmentsR (leftCornersR , rightCornersR) waypointsR) newPos
       headingBefore  = 0
       headingAfter   = vecAngle (newPos ^-^ waypoint)
       (left , right) = waypointCorners (waypoint,width) headingBefore headingAfter
+      ts             = TS revEmpty
+                          (leftCornersR `revSnoc` left , rightCornersR `revSnoc` right)
+                          (waypointsR `revSnoc` (newPos,curWidth))
     in
-      TS revEmpty
-         (leftCornersR `revSnoc` left , rightCornersR `revSnoc` right)
-         (waypointsR `revSnoc` (waypoint,width))
+      ts
   | otherwise
   = error "updateTrackState expects at least one waypoint"
 
