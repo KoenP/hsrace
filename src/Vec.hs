@@ -30,7 +30,9 @@ module Vec where
 -- import qualified Linear.Affine as LA
 -- import qualified Linear.Metric as LM
 
-import Angle ( Angle, Radians(Radians) )
+import Angle
+
+import Data.List
 -- import VectorSpace ( (^*), VectorSpace(..) )
 --------------------------------------------------------------------------------
 
@@ -91,36 +93,11 @@ norm :: Vec w -> Double
 norm (Vec x y) = sqrt (x*x + y*y)
 
 dot :: Vec w -> Vec w -> Double
-Vec x1 y1 `dot` Vec x2 y2 = x1*y1 + x2*y2
+Vec x1 y1 `dot` Vec x2 y2 = x1*x2 + y1*y2
 
 neg, normalize :: Vec w -> Vec w
 neg = mapVec negate
 normalize v = let norm_v = norm v in if nearZero norm_v then zeroVec else  v ^/ norm_v
-
-
-
--- instance VectorSpace (V2 Double) Double where
---   zeroV        = L.zero
---   (*^)         = (L.*^)
---   (^+^)        = (L.^+^)
---   (^-^)        = (L.^-^)
---   (^/)         = (^/)
---   neg (V2 x y) = V2 (-x) (-y)
---   dot          = LM.dot
---   norm         = LM.norm
---   normalize    = LM.normalize
-
--- instance Random Vec where
---   random g = let (x,g' ) = random g
---                  (y,g'') = random g'
---              in (V2 x y, g'')
--- 
---   randomR (V2 xl yl, V2 xh yh) g = let (x,g' ) = randomR (xl,xh) g
---                                        (y,g'') = randomR (yl,yh) g'
---                                    in (V2 x y, g'')
-
--- applyVec :: (Real a, Fractional c) => (c -> c -> b) -> (Vec a -> b)
--- applyVec g (V2 x y) = g (realToFrac x) (realToFrac y)
 
 -- Rotate a vector CLOCKWISE, given an angle in radians.
 rotVec :: Angle -> Vec w -> Vec w
@@ -133,6 +110,11 @@ rotVec (Radians theta) (Vec x y) = Vec
 -- atan (y/x) = theta
 vecAngle :: Vec w -> Angle
 vecAngle (Vec x y) = Radians (pi/2 - atan2 y x)
+
+-- | Computes a unit vector from an angle respective to the y axis, clockwise.
+unitvecFromAngle :: Angle -> Vec w
+unitvecFromAngle theta = Vec (rcos alpha) (rsin alpha)
+  where alpha = pi/2 - theta
 
 roundVec :: Vec w -> Vec w
 roundVec = mapVec (fromIntegral . (round :: Double -> Int))
@@ -192,3 +174,23 @@ perp (Vec x y) = Vec (-y) x
 
 ignoreCoordinateSystem :: Vec u -> Vec w
 ignoreCoordinateSystem (Vec x y) = Vec x y
+
+unzipVecs :: Fractional a => [Vec w] -> ([a] , [a])
+unzipVecs = unzip . map toTup
+
+boundingBox :: [Vec w] -> (Vec w , Vec w)
+boundingBox (v:vs) = foldl'
+  (\(Vec xl yl,Vec xh yh) (Vec x y)
+   -> (Vec (min xl x) (min yl y) , Vec (max xh x) (max yh y)))
+  (v,v)
+  vs
+
+snapAwayFrom :: Vec w -> Vec w -> Vec w
+snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
+  where
+    newX | x < x'    = realToFrac $ floor x
+         | x > x'    = realToFrac $ ceiling x
+         | otherwise = realToFrac $ round x
+    newY | y < y'    = realToFrac $ floor y   
+         | y > y'    = realToFrac $ ceiling y
+         | otherwise = realToFrac $ round y

@@ -70,16 +70,21 @@ emptyEditorTrackState = TS revEmpty (revEmpty , revEmpty) (revSingleton (zeroVec
 --------------------------------------------------------------------------------
 
 data GameState = GameState
-  { _gs_playerPos  :: Vec World
-  , _gs_playerVel  :: Vec World
-  , _gs_playerRot  :: Radians Double
-  , _gs_trackState :: TrackState
-  , _gs_track      :: Track
+  { _gs_playerPos     :: Vec World
+  , _gs_playerVel     :: Vec World
+  , _gs_playerRot     :: Radians Double
+  , _gs_trackState    :: TrackState
+  , _gs_track         :: Track
+  , _gs_collisionGrid :: CollisionGrid
   }
 makeLenses 'GameState
 
 initialGameState :: TrackState -> GameState
-initialGameState ts = GameState zeroVec zeroVec 0 ts (fromWaypoints' $ revRev $ view ts_waypointsR ts)
+initialGameState ts = GameState zeroVec zeroVec 0 ts track grid
+  where
+    track    = fromWaypoints $ revRev $ view ts_waypointsR ts
+    grid     = mkCollisionGrid cellSize (map _tsShape track)
+    cellSize = 50
 
 --------------------------------------------------------------------------------
 

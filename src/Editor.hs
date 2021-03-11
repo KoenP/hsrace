@@ -55,9 +55,10 @@ updateEditor
 
     writeToFile = keyTriggered EditorSave input
 
--- TODO pile of crap atm
+-- | Extend the track state by placing down a new waypoint.
 updateTrackState :: TrackState -> Vec World -> Double -> TrackState
 updateTrackState (TS segmentsR (leftCornersR , rightCornersR) waypointsR) newPos curWidth
+  -- General case for placing down any but the first track segment.
   | [wLast,wLast2] <- revTakeFromEnd 2 waypointsR
   = let
       wNew = (newPos , curWidth)
@@ -73,6 +74,8 @@ updateTrackState (TS segmentsR (leftCornersR , rightCornersR) waypointsR) newPos
       TS (segmentsR `revSnoc` newSegment)
          (leftCornersR `revSnoc` newLeftCorner , rightCornersR `revSnoc` newRightCorner)
          newWaypoints
+
+  -- Special case for placing down the very first track segment.
   | Just (waypoint , width) <- revLast waypointsR
   = let
       headingBefore  = 0
@@ -86,6 +89,7 @@ updateTrackState (TS segmentsR (leftCornersR , rightCornersR) waypointsR) newPos
   | otherwise
   = error "updateTrackState expects at least one waypoint"
 
+-- | Compute the "phantom" segment from the last placed track waypoint to the mouse cursor.
 virtualSegment :: (Vec World , Vec World) -> Vec World -> Double -> Angle -> TrackSegment
 virtualSegment (l0 , r0) newPos width heading = TrackSegment [l0 , l1 , r1 , r0]
   where
@@ -96,8 +100,8 @@ renderEditorState :: EditorState -> Picture
 renderEditorState (EditorState viewPort trackState mousePos@(Vec ptrX ptrY) curWidth _) =
   let
     virtualWaypoint = windowCoordsToWorldCoords viewPort mousePos
-    TS segmentsR (leftCornersR, rightCornersR) waypointsR = updateTrackState trackState virtualWaypoint curWidth
-
+    TS segmentsR (leftCornersR, rightCornersR) _
+      = updateTrackState trackState virtualWaypoint curWidth
     lastRealCorners | Just l0 <- revLast leftCornersR , Just r0 <- revLast rightCornersR
                     = (l0 , r0)
                     | otherwise
@@ -105,44 +109,14 @@ renderEditorState (EditorState viewPort trackState mousePos@(Vec ptrX ptrY) curW
     heading = vecAngle $ virtualWaypoint ^-^ fst (unsafeRevLast $ view ts_waypointsR trackState)
     vsegment = virtualSegment lastRealCorners virtualWaypoint curWidth heading
     renderedTrack = renderTrack $ vsegment : revKeepReversed segmentsR
-    -- renderedTrack = renderTrack $ fromWaypoints'
-    --   $ revRev (waypointsR `revSnoc` (virtualWaypoint, curWidth))
     pointer = translate (realToFrac ptrX) (realToFrac ptrY) $ color white $ circle 4
-
-    -- (leftCorners, rightCorners) = trackCorners
-    --   $ revRev $ waypointsR `revSnoc` (virtualWaypoint, curWidth)
     cornerCircles = pictures
-                    (map (renderPoint red) (revKeepReversed leftCornersR)
-                     ++ map (renderPoint green) (revKeepReversed rightCornersR))
-                  -- $  [translate (realToFrac x) (realToFrac y) $ color red   $ circle 10 | Vec x y <- leftCorners]
-                  -- ++ [translate (realToFrac x) (realToFrac y) $ color green $ circle 10 | Vec x y <- rightCorners]
-
-      -- pictures [ translate (realToFrac x) (realToFrac y) $ color white $ circle 10 | Vec x y <- corners]
+                    $  map (renderPoint red) (revKeepReversed leftCornersR)
+                    ++ map (renderPoint green) (revKeepReversed rightCornersR)
   in
     pictures [applyViewPort viewPort renderedTrack, pointer, applyViewPort viewPort cornerCircles]
 
 extractTrackDescription :: [(Polar, Vec World, Radians Double)] -> TrackDescription
 extractTrackDescription = TrackDescription . reverse . map (\(p,_,_) -> p)
-
--- addWaypoint :: [(Polar, Vec World, Radians Double)]
---             -> Vec World
---             -> [(Polar, Vec World, Radians Double)]
--- addWaypoint []    (Vec _ y) = [(Polar y 0 , Vec 0 y, 0)]
--- addWaypoint ((Polar rad theta, lastWaypoint, netRot):state) mousePos
---   = (_ , _ , _) : (Polar rad (newNetRot - theta) , lastWaypoint , netRot) : state
---   where
---     (dist, newNetRot) = newTrackWaypoint lastWaypoint netRot mousePos
--- 
--- newTrackWaypoint :: Vec World
---                  -> Radians Double
---                  -> Vec World
---                  -> (Double, Radians Double)
--- newTrackWaypoint lastWaypoint netRotation nextWaypoint
---   = (dist, theta)
---   where
---     dv = nextWaypoint ^-^ lastWaypoint
---     dist = norm dv
---     Polar _ theta = cartesianToPolar (rotVec (-netRotation) dv)
-
 
 --------------------------------------------------------------------------------
