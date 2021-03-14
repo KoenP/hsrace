@@ -3,6 +3,7 @@ module Input where
 --------------------------------------------------------------------------------
 import Vec
 import Angle
+import Util
 
 import Graphics.Gloss.Interface.Pure.Game
 
@@ -19,7 +20,7 @@ data Dir = DirUp | DirDown | DirLeft | DirRight
 
 data GameKey
   = Accelerating | Dir Dir | Mode
-  | EditorAdjustWidth | EditorPlaceTrack | EditorSave
+  | EditorAdjustWidth | EditorCommit | EditorSave | EditorNextMode
   deriving (Eq, Ord, Show, Read)
 
 data Input = Input
@@ -52,12 +53,14 @@ constructInput (Input down _ _) events
     step (keysTriggered, keysReleased, mouseMovement) (EventKey key Up _ _)
       = (keysTriggered, lookupKey key `insertAll` keysReleased, mouseMovement)
     step (keysTriggered, keysReleased, mouseMovement) (EventMotion v)
-      = (keysTriggered, keysReleased, mouseMovement ^+^ fromTup v)
+      = (keysTriggered, keysReleased, mouseMovement ^+^ fromTup v ^-^ Vec 0 0.5)
+       -- The Vec 0 0.5 fixes a really weird bug in gloss (TODO: dig into gloss to fix the bug properly)
     step i _ = i
 
     lookupKey :: Key -> [GameKey]
-    lookupKey (MouseButton LeftButton)  = [Accelerating, EditorPlaceTrack]
+    lookupKey (MouseButton LeftButton)  = [Accelerating, EditorCommit]
     lookupKey (MouseButton RightButton) = [EditorAdjustWidth]
+    lookupKey (SpecialKey KeySpace)     = [EditorNextMode]
     lookupKey (Char 'w')                = [Dir DirUp]
     lookupKey (Char 'a')                = [Dir DirLeft]
     lookupKey (Char 's')                = [Dir DirDown]

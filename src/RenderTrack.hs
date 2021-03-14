@@ -4,6 +4,7 @@ module RenderTrack where
 import Vec
 import Track
 import Angle hiding (radToDeg)
+import Util
 
 import Graphics.Gloss
 import qualified Graphics.Gloss as G
@@ -11,6 +12,12 @@ import Graphics.Gloss.Geometry.Angle (degToRad, radToDeg)
 import Data.Maybe (isJust, maybeToList)
 import Control.Lens (over, _1)
 ---------------------------------------------------------------------------------
+
+renderLayout :: Layout -> Picture
+renderLayout (Layout track pillars)
+  = pictures (renderTrack track : map renderPillar pillars)
+  where
+    renderPillar (pos , rad) = translateVec pos $ color white $ circle (realToFrac rad)
 
 renderTrack :: Track -> Picture
 renderTrack =

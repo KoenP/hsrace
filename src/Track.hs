@@ -4,6 +4,7 @@ module Track where
 import Vec
 import Angle
 import Polar
+import Util
 
 import Control.Lens (makeLenses, over, set, view)
 import Data.Array
@@ -16,8 +17,12 @@ import Debug.Trace
 
 newtype TrackDescription = TrackDescription { _tdPs :: [Polar] } deriving (Show)
 -- | Track segments are polygons where the vertices are listed in clockwise order.
-newtype TrackSegment = TrackSegment { _tsShape :: [Vec World] } deriving (Show, Eq)
-type Track = [TrackSegment]
+newtype TrackSegment     = TrackSegment { _tsShape :: [Vec World] } deriving (Show, Eq, Read)
+type Track               = [TrackSegment]
+type Pillar              = (Vec World , Double)
+data Layout              = Layout { _lo_track :: Track , _lo_pillars :: [Pillar] }
+  deriving (Read, Show)
+
 
 makeLenses ''Polar
 makeLenses ''TrackDescription
@@ -56,12 +61,6 @@ waypointCorners (v,rad) headingBefore headingAfter
     turnAngle       = headingAfter - headingBefore
     alpha           = (pi - turnAngle) / 2
     relocate        = (^+^ v) . rotVec headingBefore
-
--- | Repeat the last thing mentioned endlessly.
-nag :: [a] -> [a]
-nag []      = []
-nag [x]    = repeat x
-nag (x:xs) = x : nag xs
 
 --------------------------------------------------------------------------------
 -- COLLISION DETECTION: FINE GRAINED
@@ -170,7 +169,7 @@ collisionGridLookup (CollisionGrid grid bottomLeft cellSize) v
   = let Vec x y = (v ^-^ bottomLeft) ^/ cellSize
         ix      = (floor x , floor y)
         
-    in if inRange (bounds grid) ix then grid ! ix else []
+    in if inRange (bounds grid) ix then grid ! ix else [] -- TODO there's still an error here with the empty grid...
 
 mkCollisionGrid :: Double -> [Polygon] -> CollisionGrid
 mkCollisionGrid cellSize []

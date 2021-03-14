@@ -51,9 +51,10 @@ revTakeFromEnd n (Rev xs) = take n xs
 --------------------------------------------------------------------------------
   
 data TrackState = TS
-  { _ts_segmentsCache  :: Rev TrackSegment -- Contains all but the last two track segments (the last two are generated every frame) [TODO, not how it works right now, but how it should work probably]
-  , _ts_trackCorners :: (Rev (Vec World), Rev (Vec World)) -- track corners in reverse order (TODO check whether they are)
-  , _ts_waypointsR   :: Rev Waypoint -- waypoints in reverse order
+  { _ts_segmentsCache :: Rev TrackSegment -- Contains all but the last two track segments (the last two are generated every frame) [TODO, not how it works right now, but how it should work probably]
+  , _ts_trackCorners  :: (Rev (Vec World), Rev (Vec World)) -- track corners in reverse order (TODO check whether they are)
+  , _ts_waypointsR    :: Rev Waypoint -- waypoints in reverse order
+  , _ts_pillars       :: [(Vec World , Double)]
   }
   deriving (Show)
 makeLenses 'TS
@@ -62,10 +63,10 @@ trackStateFromWaypoints :: [Waypoint] -> TrackState
 trackStateFromWaypoints waypoints =
   let corners = trackCorners waypoints
       track   = trackFromCorners corners
-  in TS (revInit' $ revList track) (bimap revList revList corners) (revList waypoints)
+  in TS (revInit' $ revList track) (bimap revList revList corners) (revList waypoints) []
 
 emptyEditorTrackState :: TrackState
-emptyEditorTrackState = TS revEmpty (revEmpty , revEmpty) (revSingleton (zeroVec, 100))
+emptyEditorTrackState = TS revEmpty (revEmpty , revEmpty) (revSingleton (zeroVec, 100)) []
 
 --------------------------------------------------------------------------------
 
@@ -88,18 +89,25 @@ initialGameState ts = GameState zeroVec zeroVec 0 ts track grid
 
 --------------------------------------------------------------------------------
 
+data EditingMode = PlacingTrack  { _em_pt_curWidth :: Double }
+                 | PlacingPillar { _em_pt_pillarRadius :: Double }
+
 data EditorState = EditorState
   { _es_viewPort   :: ViewPort
   , _es_trackState :: TrackState
   , _es_pointerPos :: Vec Window
-  , _es_curWidth   :: Double
   , _es_saveToFile :: Bool
+  , _es_mode       :: EditingMode
   }
 makeLenses 'EditorState
 
 emptyEditorState :: EditorState
 emptyEditorState
-  = EditorState (ViewPort zeroVec 0 1) emptyEditorTrackState zeroVec 100 False
+  = EditorState (ViewPort zeroVec 0 1) emptyEditorTrackState zeroVec False (PlacingTrack 150)
+
+placingTrackMode, placingPillarMode :: EditingMode
+placingTrackMode = PlacingTrack 120
+placingPillarMode = PlacingPillar 20
 
 --------------------------------------------------------------------------------
 
