@@ -5,7 +5,6 @@ import Vec
 import Angle
 import Track
 import Input
-import State
 import RenderTrack
 
 import Graphics.Gloss
@@ -15,14 +14,27 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 --------------------------------------------------------------------------------
 
-updateWorld :: Double -> Input -> GameState -> ProgramState
-updateWorld dt (Input _ keysTriggered _) _ | Mode `Set.member` keysTriggered
-  = Right emptyEditorState
+data GameState = GameState
+  { _gs_playerPos     :: Vec World
+  , _gs_playerVel     :: Vec World
+  , _gs_playerRot     :: Radians Double
+  , _gs_track         :: Track
+  , _gs_collisionGrid :: CollisionGrid
+  }
+makeLenses 'GameState
+
+initialGameState :: Layout -> GameState
+initialGameState (Layout track _) = GameState zeroVec zeroVec 0 track grid
+  where
+    grid     = mkCollisionGrid cellSize (map _tsShape track)
+    cellSize = 50
+
+updateWorld :: Double -> Input -> GameState -> GameState
 updateWorld
   dt
   (Input keysDown _ (Vec mouseDx _))
-  (GameState pos0 vel0 rot0 trackState track grid)
-  = Left (GameState pos1 vel1 rot1 trackState track grid)
+  (GameState pos0 vel0 rot0 track grid)
+  = GameState pos1 vel1 rot1 track grid
   where
     accelerating = Accelerating `Set.member` keysDown
 
@@ -42,7 +54,7 @@ onRoad grid v = any (v `pointInConvexPolygon`) (grid `collisionGridLookup` v)
 --   where pg = map (^+^ pos) [Vec 10 10 , Vec 10 (-10) , Vec (-10) (-10) , Vec (-10) 10]
 
 renderGameState :: GameState -> Picture
-renderGameState (GameState (Vec x y) _ rot trackState track _) =
+renderGameState (GameState (Vec x y) _ rot track _) =
   let
     transform = rotate (negate $ realToFrac $ _unDegrees $ radToDeg rot)
               . translate (- realToFrac x) (- realToFrac y)
@@ -50,20 +62,17 @@ renderGameState (GameState (Vec x y) _ rot trackState track _) =
     world = transform $ renderTrack track
 
 
-    (leftCorners, rightCorners) = view ts_trackCorners trackState
-    cornerCircles = pictures
-      $ map (renderPoint red) (revKeepReversed leftCorners) ++ map (renderPoint green) (revKeepReversed rightCorners)
-
-    wps = transform $ pictures $ map (renderPoint white . fst) (revKeepReversed $ view ts_waypointsR trackState)
-
-
-    cellSize = 50
-    box (Vec x' y') = translate (realToFrac x') (realToFrac y')
-      $ color orange $ polygon $ map toTup [zeroVec , Vec cellSize 0 , Vec cellSize cellSize , Vec 0 cellSize]
-    pts = transform $ pictures $ concatMap (map (box . (cellSize*^) . fromTup . fst) . scanPolygon cellSize zeroVec . view tsShape) track
+    -- (leftCorners, rightCorners) = view ts_trackCorners trackState
+    -- cornerCircles = pictures
+    --   $ map (renderPoint red) (revKeepReversed leftCorners) ++ map (renderPoint green) (revKeepReversed rightCorners)
+    -- wps = transform $ pictures $ map (renderPoint white . fst) (revKeepReversed $ view ts_waypointsR trackState)
+    -- cellSize = 50
+    -- box (Vec x' y') = translate (realToFrac x') (realToFrac y')
+    --   $ color orange $ polygon $ map toTup [zeroVec , Vec cellSize 0 , Vec cellSize cellSize , Vec 0 cellSize]
+    -- pts = transform $ pictures $ concatMap (map (box . (cellSize*^) . fromTup . fst) . scanPolygon cellSize zeroVec . view tsShape) track
 
   in
-    pictures [world, playerPic, transform cornerCircles, wps] -- , pts]
+    pictures [world, playerPic] -- , transform cornerCircles, wps] -- , pts]
 
 isoscelesTrianglePath :: Float -> Float -> Path
 isoscelesTrianglePath base height = [ (-base/2, -height/3)

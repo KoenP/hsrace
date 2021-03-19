@@ -20,19 +20,32 @@ newtype TrackDescription = TrackDescription { _tdPs :: [Polar] } deriving (Show)
 newtype TrackSegment     = TrackSegment { _tsShape :: [Vec World] } deriving (Show, Eq, Read)
 type Track               = [TrackSegment]
 type Pillar              = (Vec World , Double)
+
+
+-- TODO rename and move to own module
 data Layout              = Layout { _lo_track :: Track , _lo_pillars :: [Pillar] }
   deriving (Read, Show)
 
+type Waypoint = (Vec World, Double)
+
+data LayoutSaveData
+  = LayoutSaveData { _lsd_waypoints :: [Waypoint]
+                   , _lsd_pillars   :: [Pillar]
+                   }
+  deriving (Read, Show)
 
 makeLenses ''Polar
 makeLenses ''TrackDescription
 makeLenses ''TrackSegment
+makeLenses ''Layout
+makeLenses ''LayoutSaveData
 
 --------------------------------------------------------------------------------
 -- NEW TRACK CONSTRUCTION
 --------------------------------------------------------------------------------
-type Waypoint = (Vec World, Double)
-
+fromSaveData :: LayoutSaveData -> Layout
+fromSaveData (LayoutSaveData waypoints pillars) = Layout (fromWaypoints waypoints) pillars
+  
 testje :: [Waypoint]
 testje = [(zeroVec, 30), (Vec 0 200, 40), (Vec 200 400, 60), (Vec 400 400, 10), (Vec 400 0, 30)]
 -- testje = [(zeroVec, 50), (Vec 0 300, 100), (Vec 0 500, 100), (Vec 50 600, 100)]

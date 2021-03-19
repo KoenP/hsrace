@@ -20,7 +20,7 @@ data Dir = DirUp | DirDown | DirLeft | DirRight
 
 data GameKey
   = Accelerating | Dir Dir | Mode
-  | EditorAdjustWidth | EditorCommit | EditorSave | EditorNextMode
+  | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
   deriving (Eq, Ord, Show, Read)
 
 data Input = Input
@@ -59,8 +59,8 @@ constructInput (Input down _ _) events
 
     lookupKey :: Key -> [GameKey]
     lookupKey (MouseButton LeftButton)  = [Accelerating, EditorCommit]
-    lookupKey (MouseButton RightButton) = [EditorAdjustWidth]
-    lookupKey (SpecialKey KeySpace)     = [EditorNextMode]
+    lookupKey (MouseButton RightButton) = [EditorAdjust]
+    lookupKey (SpecialKey KeySpace)     = [EditorNextSubMode]
     lookupKey (Char 'w')                = [Dir DirUp]
     lookupKey (Char 'a')                = [Dir DirLeft]
     lookupKey (Char 's')                = [Dir DirDown]
