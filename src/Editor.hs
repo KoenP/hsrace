@@ -6,6 +6,7 @@ module Editor ( EditorState(..)
               , editorStateExtractWaypoints
               , editorStateSaveToFile 
               , initializeEditorState 
+              , editor
               ) where
 
 --------------------------------------------------------------------------------
@@ -15,9 +16,43 @@ import Editor.Render
 import Editor.Overlay
 import Editor.TrackState
 import Track
+import SF
+import Vec
+import Util
+
+import Graphics.Gloss
 
 import Control.Lens
+import Prelude hiding ((.), id)
 --------------------------------------------------------------------------------
+
+editor :: Input ~> Picture
+editor = proc input -> do
+  let mouseMovement@(Vec _ mouseDy) = _input_mouseMovement input
+  cursorPos <- cumsum -< 0.1 *^ mouseMovement
+  viewPort  <- viewPortSF -< input
+
+  let dWidth | keyDown EditorAdjust input = mouseDy
+             | otherwise                  = zeroVec
+  curWidth <- stateful 100 (\_ v s -> (v + s) `max` 0) -< dWidth
+  placeWaypoint <- risingEdge -< keyDown EditorCommit input
+  let placeWaypointEvent
+        = sample placeWaypoint (windowCoordsToWorldCoords viewPort cursorPos, curWidth)
+
+  trackState
+    <- updateOnJust emptyEditorTrackState (\ts (pos,width)
+                                          ->  addWaypoint ts pos width)
+    -< placeWaypointEvent
+
+  -- waypointsR <- updateOnJust revEmpty revSnoc -< placeWaypointEvent
+  -- trackCornersRR <- 
+  returnA -< renderEditor (OverlayState cursorPos viewPort undefined)
+                          (LayoutState trackState (PlacingTrack curWidth))
+
+viewPortSF :: Input ~> ViewPort
+viewPortSF = proc input -> do
+  position <- cumsum -< 10 *^ direction input
+  returnA -< ViewPort position 0 1
 
 type EditorState = (OverlayState, LayoutState)
 

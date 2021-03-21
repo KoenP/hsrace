@@ -1,22 +1,27 @@
-{-# language TypeOperators #-}
-{-# language ScopedTypeVariables #-}
-{-# language Arrows #-}
+module SF
+  ( module SF
+  , module Control.Arrow
+  , module Control.Category
+  ) where
 
-module SF where
+--------------------------------------------------------------------------------
+import Vec
 
 import Prelude hiding ((.), id)
 import Control.Category
 import Control.Arrow
+import Debug.Trace
+--------------------------------------------------------------------------------
 
 type Time = Double
 
-data a ~> b = SF { unSF :: (Time,a) -> (b, a ~> b) }
+newtype a ~> b = SF { unSF :: (Time,a) -> (b, a ~> b) }
 
 instance Functor ((~>) a) where
   fmap f (SF sf) = SF $ \dta -> let (b, sf') = sf dta in (f b, fmap f sf')
 
 instance Applicative ((~>) c) where
-  pure x = SF (\_ -> (x, pure x))
+  pure x = SF (const (x, pure x))
   SF ff <*> SF fa = SF $ \dtc ->
     let (f, sff') = ff dtc
         (a, fa') = fa dtc
@@ -41,13 +46,17 @@ instance ArrowChoice (~>) where
   left (SF sf) = SF k
     where
       k (dt, Left  b) = let (c, sf') = sf (dt,b) in (Left c, left sf')
-      k (dt, Right d) = (Right d, left (SF sf))
+      k (_ , Right d) = (Right d, left (SF sf))
 
 instance ArrowLoop (~>) where
   -- loop :: ((b,d) ~> (c,d)) -> (b~>c)
   loop (SF sf) = SF $ \(dt,b) ->
     let ((c,d), sf') = sf (dt,(b,d))
     in (c, loop sf')
+
+updateSF :: Time -> i -> (o, (i ~> o)) -> IO (o, (i ~> o))
+updateSF dt input (_, SF sf) = return (out, sf')
+  where (out, sf') = sf (dt,input)
 
 -- State
 --------
@@ -57,19 +66,46 @@ delay a0 = SF $ \(_,a) -> (a0, delay a)
 -- delayMany :: [b] -> (a ~> b) -> (a ~> b)
 -- delayMany bs sf = foldr delay sf bs
 
-stateful :: a -> (a -> a) -> (b ~> a)
-stateful s0 update = SF $ \_ -> (s0, stateful (update s0) update)
+stepper :: a -> (a -> a) -> (b ~> a)
+stepper s0 update = SF $ const (s0, stepper (update s0) update)
+
+stateful :: s -> (Time -> i -> s -> s) -> (i ~> s)
+stateful a0 update = SF sf
+  where sf (dt,b) = let a1 = update dt b a0 in (a1, stateful a1 update)
+
+stateWithReset :: a -> (Time -> b -> a -> a) -> ((b, Maybe a) ~> a)
+stateWithReset a0 update = SF sf
+  where
+    sf (dt, (b,Nothing)) = let a1 = update dt b a0 in (a1, stateWithReset a1 update)
+    sf (_ , (_,Just a )) = (a, stateWithReset a update)
 
 risingEdge :: Bool ~> Bool
 risingEdge = (&&) <$> fmap not (delay False) <*> id
 
+cumsumFrom :: VectorSpace v a => v -> (v ~> v)
+cumsumFrom v0 = stateful v0 (const (^+^))
+
+cumsum :: VectorSpace v a => (v ~> v)
+cumsum = cumsumFrom zeroVec
+
+integralFrom :: VectorSpace v Time => v -> v ~> v
+integralFrom v0 = stateful v0 step
+  where step dt v acc = acc ^+^ dt*^v
+
+integral :: VectorSpace v Time => v ~> v
+integral = integralFrom zeroVec
+
+clampedIntegralFrom :: (Vec w,Vec w) -> Vec w -> (Vec w ~> Vec w)
+clampedIntegralFrom bounds v0 = stateful v0 step
+  where step dt v acc = clampVec bounds (acc ^+^ dt*^v)
+
 -- Streams
 ----------
 fromInfiniteList :: [b] -> (a ~> b)
-fromInfiniteList bs = fmap head $ stateful bs tail
+fromInfiniteList bs = head <$> stepper bs tail
 
 sfCycle :: [b] -> (a ~> b)
-sfCycle bs = fmap head $ stateful (cycle bs) tail
+sfCycle bs = head <$> stepper (cycle bs) tail
 
 -- Switches
 -----------
@@ -83,19 +119,33 @@ rSwitch select (SF sf) = SF $ \dta -> case sf dta of
   (Left  s, _  ) -> unSF (rSwitch select (select s)) dta
   (Right b, sf') -> (b, rSwitch select sf')
 
+updateOnJust :: s -> (s -> e -> s) -> (Maybe e ~> s)
+updateOnJust b0 f = SF $ \case
+  (_, Just a ) -> let b1 = f b0 a in (b1, updateOnJust b1 f)
+  (_, Nothing) -> (b0, updateOnJust b0 f)
+
 -- Collections
 --------------
 col :: Functor f => f (a ~> b) -> (a ~> f b)
 col sfs = SF $ \dta -> let fsf = fmap (\(SF sf) -> sf dta) sfs
                       in (fmap fst fsf, col (fmap snd fsf))
 
+-- Events
+---------
+sample :: Bool -> a -> Maybe a
+sample True  a = Just a
+sample False _ = Nothing
 
+-- Arrs
+-------
+arr2 :: (a -> b -> c) -> ((a,b) ~> c)
+arr2 = arr . uncurry
 
 --------------------------------------------------------------------------------
 -- TESTING
 --------------------------------------------------------------------------------
 
-nats = stateful 0 (+1)
+nats = stepper 0 (+1)
 
 negs = fmap negate nats
 

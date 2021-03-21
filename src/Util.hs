@@ -1,4 +1,4 @@
-module Util where
+module Util (module Util, module Debug.Trace) where
 
 --------------------------------------------------------------------------------
 import Vec

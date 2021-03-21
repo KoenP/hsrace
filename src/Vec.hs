@@ -33,6 +33,7 @@ module Vec where
 import Angle
 
 import Data.List
+import Data.Coerce
 -- import VectorSpace ( (^*), VectorSpace(..) )
 --------------------------------------------------------------------------------
 
@@ -41,6 +42,62 @@ import Data.List
 -- type Vec w = V2 Double
 data Vec w = Vec { _x :: !Double , _y :: !Double }
   deriving (Eq, Ord, Show, Read)
+
+infixl 6 ^+^
+infixl 6 ^-^
+infix 7 ^*
+infix 7 *^
+
+class VectorSpace v a | v -> a where
+  zeroVec   :: v
+  (^+^)     :: v -> v -> v
+  (^-^)     :: v -> v -> v
+  (*^)      :: a -> v -> v
+  (^/)      :: v -> a -> v
+  neg       :: v -> v
+  dot       :: v -> v -> a
+  norm      :: v -> a
+  normalize :: v -> v
+
+instance VectorSpace (Vec w) Double where
+  zeroVec                   = Vec 0 0
+  (^+^)                     = zipWithVec (+)
+  (^-^)                     = zipWithVec (-)
+  v ^/ a                    = mapVec (/a) v
+  a *^ v                    = mapVec (a*) v
+  neg                       = mapVec negate
+  Vec x1 y1 `dot` Vec x2 y2 = x1*x2 + y1*y2
+  norm (Vec x y)            = sqrt (x*x + y*y)
+  normalize v               = let norm_v = norm v
+                              in if nearZero norm_v then zeroVec else  v ^/ norm_v
+
+instance VectorSpace Double Double where
+  zeroVec   = 0
+  (^+^)     = (+)
+  (^-^)     = (-)
+  (*^)      = (*)
+  (^/)      = (/)
+  neg       = negate
+  dot       = (*)
+  norm      = id
+  normalize = const 1
+
+instance Fractional a => VectorSpace (Radians a) a where
+  zeroVec            = 0
+  (^+^)              = (+)
+  (^-^)              = (-)
+  a *^ Radians theta = Radians (a * theta)
+  Radians theta ^/ a = Radians (theta / a)
+  neg                = negate
+  dot theta1 theta2  = coerce theta1 * coerce theta2
+  norm               = coerce
+  normalize          = const 1
+
+(^*) :: VectorSpace v a => v -> a -> v
+(^*) = flip (*^)
+
+sumV :: Traversable t => t (Vec w) -> Vec w
+sumV = foldl (^+^) zeroVec
 
 toTup :: Fractional a => Vec w -> (a,a)
 toTup (Vec x y) = (realToFrac x, realToFrac y)
@@ -59,12 +116,11 @@ nearZero x = x <= 1e-12
 -- data Pose = Pose { _posePos :: !Vec, _poseHdg :: !Vec }
 --   deriving (Generic, Show, Eq, Ord)
 
-upVec, downVec, leftVec, rightVec, zeroVec :: Vec w
+upVec, downVec, leftVec, rightVec :: Vec w
 upVec    = Vec   0    1
 downVec  = Vec   0  (-1)
 leftVec  = Vec (-1)   0
 rightVec = Vec   1    0
-zeroVec  = Vec   0    0
 
 mapVec :: (Double -> Double) -> Vec w -> Vec w
 mapVec f (Vec x y) = Vec (f x) (f y)
@@ -72,32 +128,6 @@ mapVec f (Vec x y) = Vec (f x) (f y)
 zipWithVec :: (Double -> Double -> Double) -> Vec w -> Vec w -> Vec w
 zipWithVec f (Vec x1 y1) (Vec x2 y2) = Vec (f x1 x2) (f y1 y2)
 
-
-(^+^), (^-^) :: Vec w -> Vec w -> Vec w
-(^+^) = zipWithVec (+)
-(^-^) = zipWithVec (-)
-
-(^/) :: Vec w -> Double -> Vec w
-v ^/ a = mapVec (/a) v
-
-(*^) :: Double -> Vec w -> Vec w
-a *^ v = mapVec (a*) v
-
-(^*) :: Vec w -> Double -> Vec w
-(^*) = flip (*^)
-
-sumV :: Traversable t => t (Vec w) -> Vec w
-sumV = foldl (^+^) zeroVec
-
-norm :: Vec w -> Double
-norm (Vec x y) = sqrt (x*x + y*y)
-
-dot :: Vec w -> Vec w -> Double
-Vec x1 y1 `dot` Vec x2 y2 = x1*x2 + y1*y2
-
-neg, normalize :: Vec w -> Vec w
-neg = mapVec negate
-normalize v = let norm_v = norm v in if nearZero norm_v then zeroVec else  v ^/ norm_v
 
 -- Rotate a vector CLOCKWISE, given an angle in radians.
 rotVec :: Angle -> Vec w -> Vec w
@@ -138,7 +168,7 @@ clamp (low,high) x | x <= low  = low
                    | otherwise = x
 
 clampVec :: (Vec w, Vec w) -> Vec w -> Vec w
-clampVec ((Vec l b),(Vec r t)) (Vec x y) = Vec (clamp (l,r) x) (clamp (b,t) y)
+clampVec (Vec l b,Vec r t) (Vec x y) = Vec (clamp (l,r) x) (clamp (b,t) y)
 
 -- unused and untested
 -- clampEvent :: Vec -> Vec -> Vec -> Event Vec
@@ -163,7 +193,7 @@ windowCoordsToWorldCoords (ViewPort pos rot zoom) (Vec wx wy) =
 -- | Check whether a position is inside the rectangle defined by
 -- the two other vectors. TODO kind of a bad name
 between :: Vec w -> (Vec w, Vec w) -> Bool
-between (Vec x y) ((Vec l b),(Vec r t)) = x >= l && x <= r && y >= b && y <= t
+between (Vec x y) (Vec l b,Vec r t) = x >= l && x <= r && y >= b && y <= t
 
 -- | Measure the distance between two points in space.
 (<->) :: Vec w -> Vec w -> Double
@@ -191,6 +221,6 @@ snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
     newX | x < x'    = realToFrac $ floor x
          | x > x'    = realToFrac $ ceiling x
          | otherwise = realToFrac $ round x
-    newY | y < y'    = realToFrac $ floor y   
+    newY | y < y'    = realToFrac $ floor y
          | y > y'    = realToFrac $ ceiling y
          | otherwise = realToFrac $ round y
