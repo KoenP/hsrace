@@ -15,6 +15,7 @@ import SF
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
 
+import Data.Function hiding ((.))
 import Data.List
 import Data.Coerce
 import Data.Array
@@ -33,8 +34,14 @@ main = do
   let track = fromWaypoints saveData
   
   -- keymap <- constructKeyMap "keybindings.cfg"
-  runSF editor
-  -- runSF (game track (mkCollisionGrid 50 (map _tsShape track)))
+
+  let game' mode track = game mode track (mkCollisionGrid 50 (map _tsShape track))
+  let sf = runMode (game' (editor game') track)
+  -- let sf = runMode (fix (game' . editor))
+  runSF sf
+  
+  -- runSF editor
+  -- runSF (game )
   -- playIO
   --   (InWindow "hsrace test" (1716,1397) (800,600))
   --   black
@@ -43,6 +50,11 @@ main = do
   --   (return . render)
   --   (\e w -> return (registerEvent e w))
   --   (glossUpdate update)
+
+-- game :: m -> m
+-- editor :: m -> m
+-- game (editor (game (editor ....)))
+-- game (fix ())
 
 type ProgramState = Either (GameState, EditorState) EditorState
 
@@ -56,6 +68,9 @@ runSF sf
     (\(_,_,(pic,_)) -> return pic)
     (\e w -> return (registerEvent e w))
     (glossUpdate updateSF)
+
+-- prog :: Input ~> Picture
+-- prog = 
 
 -- switchMode :: ProgramState -> ProgramState
 -- switchMode (Left  (_,es))

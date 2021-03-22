@@ -6,6 +6,7 @@ module SF
 
 --------------------------------------------------------------------------------
 import Vec
+import Util
 
 import Prelude hiding ((.), id)
 import Control.Category
@@ -109,15 +110,20 @@ sfCycle bs = head <$> stepper (cycle bs) tail
 
 -- Switches
 -----------
-switch :: (select -> (a ~> b)) -> (a ~> Either select b) -> (a ~> b)
-switch select (SF sf) = SF $ \dta -> case sf dta of
-  (Left  s, _  ) -> unSF (select s) dta
-  (Right b, sf') -> (b, switch select sf')
+-- switch :: (select -> (a ~> b)) -> (a ~> Either select b) -> (a ~> b)
+-- switch select (SF sf) = SF $ \dta -> case sf dta of
+--   (Left  s, _  ) -> unSF (select s) dta
+--   (Right b, sf') -> (b, switch select sf')
 
-rSwitch :: (select -> (a ~> Either select b)) -> (a ~> Either select b) -> (a ~> b)
+rSwitch :: (select -> (a ~> (Maybe select, b))) -> (a ~> (Maybe select, b)) -> (a ~> b)
 rSwitch select (SF sf) = SF $ \dta -> case sf dta of
-  (Left  s, _  ) -> unSF (rSwitch select (select s)) dta
-  (Right b, sf') -> (b, rSwitch select sf')
+  ((Just s , _), _  ) -> unSF (rSwitch select (select s >>> first notYet)) dta
+  ((Nothing, b), sf') -> (b, rSwitch select sf')
+
+newtype Mode i o = Mode (i ~> (Maybe (Mode i o), o))
+
+runMode :: Mode i o -> (i ~> o)
+runMode (Mode sf) = rSwitch (\(Mode sf') -> sf') sf
 
 updateOnJust :: s -> (s -> e -> s) -> (Maybe e ~> s)
 updateOnJust b0 f = SF $ \case
@@ -136,10 +142,22 @@ sample :: Bool -> a -> Maybe a
 sample True  a = Just a
 sample False _ = Nothing
 
--- Arrs
--------
+sampleOnRisingEdge :: (Bool,a) ~> Maybe a
+sampleOnRisingEdge = first risingEdge >>> arr2 sample
+
+notYet :: Maybe a ~> Maybe a
+notYet = SF $ const (Nothing, id)
+
+-- Varia
+--------
 arr2 :: (a -> b -> c) -> ((a,b) ~> c)
 arr2 = arr . uncurry
+
+constant :: o -> (i ~> o)
+constant = arr . const
+
+inspect :: (a ~> b) -> (a ~> (b, a ~> b))
+inspect (SF sf) = SF $ \dta -> let (b,sf') = sf dta in ((b,sf'), inspect sf')
 
 --------------------------------------------------------------------------------
 -- TESTING

@@ -26,8 +26,19 @@ import Control.Lens
 import Prelude hiding ((.), id)
 --------------------------------------------------------------------------------
 
-editor :: Input ~> Picture
-editor = proc input -> do
+editor :: (Mode Input Picture -> Track -> Mode Input Picture) -> Mode Input Picture
+editor = editor' editorSF
+
+editor' :: (Input ~> (Picture, Track))
+        -> (Mode Input Picture -> Track -> Mode Input Picture)
+        -> Mode Input Picture
+editor' edSF switchToF = Mode $ proc input -> do
+  ((pic, track), edSF') <- inspect edSF -< input
+  changeMode_ <- sampleOnRisingEdge -< (keyDown ChangeMode input, switchToF (editor' edSF' switchToF) track)
+  returnA -< (changeMode_, pic)
+
+editorSF :: Input ~> (Picture, Track)
+editorSF = proc input -> do
   let mouseMovement@(Vec _ mouseDy) = _input_mouseMovement input
   cursorPos <- cumsum -< 0.1 *^ mouseMovement
   viewPort  <- viewPortSF -< input
@@ -44,10 +55,13 @@ editor = proc input -> do
                                           ->  addWaypoint ts pos width)
     -< placeWaypointEvent
 
-  -- waypointsR <- updateOnJust revEmpty revSnoc -< placeWaypointEvent
-  -- trackCornersRR <- 
-  returnA -< renderEditor (OverlayState cursorPos viewPort undefined)
-                          (LayoutState trackState (PlacingTrack curWidth))
+  let track = fromWaypoints $ revRev $ _ts_waypointsR trackState
+  let pic = renderEditor
+        (OverlayState cursorPos viewPort undefined)
+        (LayoutState trackState (PlacingTrack curWidth))
+
+  returnA -< (pic, track)
+    
 
 viewPortSF :: Input ~> ViewPort
 viewPortSF = proc input -> do

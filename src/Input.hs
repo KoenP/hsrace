@@ -4,6 +4,7 @@ module Input where
 import Vec
 import Angle
 import Util
+import SF
 
 import Graphics.Gloss.Interface.Pure.Game
 
@@ -19,7 +20,7 @@ data Dir = DirUp | DirDown | DirLeft | DirRight
   deriving (Eq, Ord, Show, Read)
 
 data GameKey
-  = Accelerating | Dir Dir | Mode
+  = Accelerating | Dir Dir | ChangeMode
   | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
   deriving (Eq, Ord, Show, Read)
 
@@ -65,7 +66,7 @@ constructInput (Input down _ _) events
     lookupKey (Char 'a')                = [Dir DirLeft]
     lookupKey (Char 's')                = [Dir DirDown]
     lookupKey (Char 'd')                = [Dir DirRight]
-    lookupKey (Char 'm')                = [Mode]
+    lookupKey (Char 'm')                = [ChangeMode]
     lookupKey (Char 'z')                = [EditorSave]
     lookupKey _                         = []
 
@@ -100,3 +101,8 @@ glossUpdate updateWorld dt_float (events, oldInput, w0) = do
 
 mouseSensitivity :: Double
 mouseSensitivity = 0.0001
+
+--------------------------------------------------------------------------------
+-- Signal Functions
+changeMode :: mode -> (Input ~> Maybe mode)
+changeMode switchTo = (arr (keyDown ChangeMode) &&& constant switchTo) >>> sampleOnRisingEdge

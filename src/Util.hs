@@ -19,3 +19,8 @@ nag :: [a] -> [a]
 nag []      = []
 nag [x]    = repeat x
 nag (x:xs) = x : nag xs
+
+interleave :: [a] -> [a] -> [a]
+interleave (x:xs) (y:ys) = x : y : interleave xs ys
+interleave xs     []     = xs
+interleave []     ys     = ys
