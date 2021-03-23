@@ -55,17 +55,18 @@ updateLayoutState
 
 initializeLayoutState :: LayoutSaveData -> LayoutState
 initializeLayoutState saveData
-  = LayoutState (trackStateFromSaveData saveData) placingTrackMode
+  = undefined
+  -- = LayoutState (trackStateFromSaveData saveData) placingTrackMode
 
 emptyLayoutState :: LayoutState
 emptyLayoutState
   = LayoutState emptyEditorTrackState (PlacingTrack 150)
 
-placingTrackMode, placingPillarMode :: EditingMode
-placingTrackMode = PlacingTrack 120
-placingPillarMode = PlacingPillar 20
+-- placingTrackMode, placingPillarMode :: EditingMode
+-- placingTrackMode = PlacingTrack 120
+-- placingPillarMode = PlacingPillar 20
 
-nextEditorMode :: LayoutState -> LayoutState
-nextEditorMode = over ls_mode $ \case
-  PlacingTrack {}  -> placingPillarMode
-  PlacingPillar {} -> placingTrackMode
+-- nextEditorMode :: LayoutState -> LayoutState
+-- nextEditorMode = over ls_mode $ \case
+--   PlacingTrack {}  -> placingPillarMode
+--   PlacingPillar {} -> placingTrackMode

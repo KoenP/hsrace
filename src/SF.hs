@@ -55,7 +55,7 @@ instance ArrowLoop (~>) where
     let ((c,d), sf') = sf (dt,(b,d))
     in (c, loop sf')
 
-updateSF :: Time -> i -> (o, (i ~> o)) -> IO (o, (i ~> o))
+updateSF :: Time -> i -> (o, i ~> o) -> IO (o, i ~> o)
 updateSF dt input (_, SF sf) = return (out, sf')
   where (out, sf') = sf (dt,input)
 
@@ -110,25 +110,42 @@ sfCycle bs = head <$> stepper (cycle bs) tail
 
 -- Switches
 -----------
--- switch :: (select -> (a ~> b)) -> (a ~> Either select b) -> (a ~> b)
--- switch select (SF sf) = SF $ \dta -> case sf dta of
---   (Left  s, _  ) -> unSF (select s) dta
---   (Right b, sf') -> (b, switch select sf')
+switch :: (select -> (a ~> b)) -> (a ~> (Maybe select, b)) -> (a ~> b)
+switch select (SF sf) = SF $ \dta -> case sf dta of
+  ((Just  s, _), _  ) -> traceShow "switch!" $ unSF (select s) dta
+  ((Nothing, b), sf') -> (b, switch select sf')
 
 rSwitch :: (select -> (a ~> (Maybe select, b))) -> (a ~> (Maybe select, b)) -> (a ~> b)
 rSwitch select (SF sf) = SF $ \dta -> case sf dta of
   ((Just s , _), _  ) -> unSF (rSwitch select (select s >>> first notYet)) dta
   ((Nothing, b), sf') -> (b, rSwitch select sf')
 
-newtype Mode i o = Mode (i ~> (Maybe (Mode i o), o))
+newtype Mode i o = Mode { unMode :: i ~> (Maybe (Mode i o), o) }
 
 runMode :: Mode i o -> (i ~> o)
-runMode (Mode sf) = rSwitch (\(Mode sf') -> sf') sf
+runMode (Mode sf) = rSwitch unMode sf
 
 updateOnJust :: s -> (s -> e -> s) -> (Maybe e ~> s)
 updateOnJust b0 f = SF $ \case
   (_, Just a ) -> let b1 = f b0 a in (b1, updateOnJust b1 f)
   (_, Nothing) -> (b0, updateOnJust b0 f)
+
+mkMode :: (i ~> o) -> (Mode (i,Bool) o -> Mode (i,Bool) o)
+mkMode sf nextMode = Mode $ proc (i, next) -> do
+  o <- sf -< i
+  let event = sample next nextMode
+  returnA -< (event, o)
+
+chainedSwitch :: [i ~> o] -> ((i,Bool) ~> o)
+chainedSwitch (sf:sfs) = switch (const (chainedSwitch sfs)) $ proc (i,next) -> do
+  o <- sf -< i
+  flipSwitch <- notYet -< if next then Just () else Nothing
+  returnA -< (flipSwitch, o)
+
+cycleSwitch :: (i ~> o) -> (i ~> o) -> ((i,Bool) ~> o)
+cycleSwitch (SF sf1) (SF sf2) = SF $ \case
+  (dt, (i, True))  -> let (o, sf2') = sf2 (dt,i) in (o, cycleSwitch sf2' (SF sf1))
+  (dt, (i, False)) -> let (o, sf1') = sf1 (dt,i) in (o, cycleSwitch sf1' (SF sf2))
 
 -- Collections
 --------------

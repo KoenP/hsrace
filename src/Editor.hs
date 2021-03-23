@@ -1,13 +1,4 @@
-module Editor ( EditorState(..)
-              , OverlayState(..)
-              , updateEditor
-              , renderEditor
-              , editorStateExtractLayout
-              , editorStateExtractWaypoints
-              , editorStateSaveToFile 
-              , initializeEditorState 
-              , editor
-              ) where
+module Editor where
 
 --------------------------------------------------------------------------------
 import Input
@@ -15,9 +6,12 @@ import Editor.LayoutState
 import Editor.Render
 import Editor.Overlay
 import Editor.TrackState
+import Editor.GUI
 import Track
+import RenderTrack
 import SF
 import Vec
+import Types
 import Util
 
 import Graphics.Gloss
@@ -26,141 +20,88 @@ import Control.Lens
 import Prelude hiding ((.), id)
 --------------------------------------------------------------------------------
 
-editor :: (Mode Input Picture -> Track -> Mode Input Picture) -> Mode Input Picture
+type TrackEditCommand = (Maybe Waypoint, Maybe Pillar)
+
+editor :: Game -> ProgMode
 editor = editor' editorSF
 
-editor' :: (Input ~> (Picture, Track))
-        -> (Mode Input Picture -> Track -> Mode Input Picture)
-        -> Mode Input Picture
+editor' :: (Input ~> (Output, Layout))
+        -> Game
+        -> ProgMode
 editor' edSF switchToF = Mode $ proc input -> do
-  ((pic, track), edSF') <- inspect edSF -< input
+  ((out, track), edSF') <- inspect edSF -< input
   changeMode_ <- sampleOnRisingEdge -< (keyDown ChangeMode input, switchToF (editor' edSF' switchToF) track)
-  returnA -< (changeMode_, pic)
+  returnA -< (changeMode_, out)
 
-editorSF :: Input ~> (Picture, Track)
+editorSF :: Input ~> (Output, Layout)
 editorSF = proc input -> do
-  let mouseMovement@(Vec _ mouseDy) = _input_mouseMovement input
-  cursorPos <- cumsum -< 0.1 *^ mouseMovement
-  viewPort  <- viewPortSF -< input
+  gui_ <- gui -< input
+  nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
+  -- out <- runMode placingTrackMode -< (input, gui_)
+  rec
+    dTrackState <- delay emptyEditorTrackState -< trackState
+    (editCommands, pic) <- cycleSwitch placingTrackMode placingPillarMode
+                        -< ((input, gui_, dTrackState), nextSubMode)
+    trackState <- trackStateSF emptyEditorTrackState -< editCommands
 
-  let dWidth | keyDown EditorAdjust input = mouseDy
-             | otherwise                  = zeroVec
+  -- Save current track.
+  let waypoints = revRev $ _ts_waypointsR trackState
+  writeFile
+    <- sampleOnRisingEdge
+    -< (keyDown EditorSave input, FileOutput "track" (show waypoints))
+
+  -- Finalize outputs.
+  let pic' = _gui_overlay gui_ pic
+        -- renderEditor
+        -- (OverlayState cursorPos viewPort undefined)
+        -- (LayoutState trackState (PlacingTrack curWidth))
+
+  let output = Output pic' writeFile
+
+  returnA -< (output, extractLayout trackState)
+
+placingPillarMode :: (Input, GUI, TrackState) ~> (TrackEditCommand, Picture)
+placingPillarMode = proc (input, GUI _ placePillarPos _ _, trackState) -> do
+  let
+    Vec _ mouseDy = _input_mouseMovement input
+    adjusting = keyDown EditorAdjust input
+    dRadius | adjusting = mouseDy
+            | otherwise = zeroVec
+  curRadius <- stateful 30 (\_ v s -> (v + s) `max` 0) -< dRadius
+
+  placePillar <- risingEdge -< keyDown EditorCommit input
+  let placePillarEvent = sample placePillar (placePillarPos, curRadius)
+
+  let pic = renderPlacingPillarMode placePillarPos trackState curRadius
+
+  returnA -< ((Nothing, placePillarEvent), pic)
+
+placingTrackMode :: (Input, GUI, TrackState) ~> (TrackEditCommand, Picture)
+placingTrackMode = proc (input, gui, trackState) -> do
+  -- Change track width.
+  let
+    Vec _ mouseDy      = _input_mouseMovement input
+    adjusting          = keyDown EditorAdjust input
+    dWidth | adjusting = mouseDy
+           | otherwise = zeroVec
   curWidth <- stateful 100 (\_ v s -> (v + s) `max` 0) -< dWidth
+
+  -- Update the track state with a new waypoint when the user clicks.
   placeWaypoint <- risingEdge -< keyDown EditorCommit input
-  let placeWaypointEvent
-        = sample placeWaypoint (windowCoordsToWorldCoords viewPort cursorPos, curWidth)
+  let
+    placeTrackPos      = _gui_cursorWorldPos gui
+    placeWaypointEvent = sample placeWaypoint (placeTrackPos, curWidth)
 
-  trackState
-    <- updateOnJust emptyEditorTrackState (\ts (pos,width)
-                                          ->  addWaypoint ts pos width)
-    -< placeWaypointEvent
+  let pic = renderPlacingTrackMode placeTrackPos trackState curWidth
 
-  let track = fromWaypoints $ revRev $ _ts_waypointsR trackState
-  let pic = renderEditor
-        (OverlayState cursorPos viewPort undefined)
-        (LayoutState trackState (PlacingTrack curWidth))
+  returnA -< ((placeWaypointEvent, Nothing), pic)
 
-  returnA -< (pic, track)
-    
+trackStateUpdate :: TrackState -> TrackEditCommand -> TrackState
+trackStateUpdate ts (Just (pos,width), _          ) = addWaypoint ts pos width
+trackStateUpdate ts (Nothing         , Just pillar) = addPillar ts pillar
+trackStateUpdate ts (Nothing         , Nothing)     = ts
 
-viewPortSF :: Input ~> ViewPort
-viewPortSF = proc input -> do
-  position <- cumsum -< 10 *^ direction input
-  returnA -< ViewPort position 0 1
+trackStateSF :: TrackState -> (TrackEditCommand ~> TrackState)
+trackStateSF ts0 = stateful ts0 (const (flip trackStateUpdate))
+  
 
-type EditorState = (OverlayState, LayoutState)
-
-updateEditor :: Double
-             -> Input
-             -> EditorState
-             -> EditorState
-updateEditor dt input (os0,ls0) =
-  let os1 = updateOverlay input os0
-  in (os1 , updateLayoutState dt input os1 ls0)
-
-editorStateExtractLayout :: EditorState -> Layout
-editorStateExtractLayout (_, LayoutState { _ls_trackState = ts })
-  = extractLayout ts
-
-editorStateExtractWaypoints :: EditorState -> [Waypoint]
-editorStateExtractWaypoints (_, LayoutState { _ls_trackState = ts })
-  = revRev (view ts_waypointsR ts)
-
-editorStateSaveToFile :: EditorState -> Bool
-editorStateSaveToFile (OverlayState { _os_saveToFile = saveToFile }, _)
-  = saveToFile
-
-initializeEditorState :: LayoutSaveData -> EditorState
-initializeEditorState saveData = (initialOverlayState, initializeLayoutState saveData)
-
--- update
-
---   (EditorState viewPort1 trackState1 pointerPos1 writeToFile mode1)
---   where
---     -- Viewport
---     adjusting     = keyDown EditorAdjustWidth input
---     mouseMovement = _input_mouseMovement input
---     viewPort1     = updateEditorViewPort input viewPort0
---     pointerPos1   | not adjusting = pointerPos0 ^+^ (0.1 *^ ignoreCoordinateSystem mouseMovement)
---                   | otherwise     = pointerPos0
---     pointerWorldPos = windowCoordsToWorldCoords viewPort1 pointerPos1
---     writeToFile = keyTriggered EditorSave input
-
--- updatePlacingTrackMode :: Input -> EditorState -> EditorState
--- updatePlacingTrackMode
---   input@Input { _input_mouseMovement = mouseMovement
---               }
---   EditorState { _es_trackState       = trackState0
---               , _es_mode             = PlacingTrack curWidth0
---               , _es_pointerPos       = pointerPos0
---               , _es_viewPort         = viewPort0
---               } =
---   let
---     adjustingWidth = keyDown EditorAdjustWidth input
---     curWidth1 | adjustingWidth = let (Vec _ y) = mouseMovement in (curWidth0 + y) `max` 0
---               | otherwise      = curWidth0
---     viewPort1     = updateEditorViewPort input viewPort0
---     adjusting     = keyDown EditorAdjustWidth input
---     pointerPos1   | not adjusting = updateCursor mouseMovement pointerPos0
---                   | otherwise     = pointerPos0
---     trackState1
---       | keyTriggered EditorCommit input
---       = addWaypoint trackState0 (windowCoordsToWorldCoords viewPort1 pointerPos1) curWidth1
---       | otherwise
---       = trackState0
--- 
---     saveToFile = keyTriggered EditorSave input
---   in
---     EditorState viewPort1 trackState1 pointerPos1 saveToFile (PlacingTrack curWidth1)
--- 
--- updatePlacingPillarMode :: Input -> EditorState -> EditorState
--- updatePlacingPillarMode
---   input@Input { _input_mouseMovement = mouseMovement
---               }
---   EditorState { _es_trackState       = trackState0
---               , _es_mode             = PlacingPillar radius0
---               , _es_pointerPos       = pointerPos0
---               , _es_viewPort         = viewPort0
---               } =
---   let
---     -- TODO get rid of code duplication
---     adjustingWidth = keyDown EditorAdjustWidth input
---     radius1 | adjustingWidth = let (Vec _ y) = mouseMovement in (radius0 + y) `max` 0
---             | otherwise      = radius0
---     viewPort1     = updateEditorViewPort input viewPort0
---     adjusting     = keyDown EditorAdjustWidth input
---     pointerPos1   | not adjusting = updateCursor mouseMovement pointerPos0
---                   | otherwise     = pointerPos0
---     trackState1
---       | keyTriggered EditorCommit input
---       = addPillar trackState0 (windowCoordsToWorldCoords viewPort1 pointerPos1 , radius1)
---       | otherwise
---       = trackState0
---     saveToFile = keyTriggered EditorSave input
---   in
---     EditorState viewPort1 trackState1 pointerPos1 saveToFile (PlacingPillar radius1)
-
-
-
-
---------------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import Track
 import Input
 import RenderTrack
 import SF
+import Types
 import Util
 
 import Graphics.Gloss
@@ -57,8 +58,8 @@ renderGameState (GameState (Vec x y) _ rot track _) =
   in
     pictures [world, playerPic] -- , transform cornerCircles, wps] -- , pts]
 
-game :: Mode Input Picture -> Track -> CollisionGrid -> Mode Input Picture
-game switchTo track grid = Mode $ proc input -> do
+game :: CollisionGrid -> Game
+game grid switchTo (Layout track _) = Mode $ proc input -> do
   changeMode_ <- changeMode switchTo -< input
   
   let accelerating = keyDown Accelerating input
@@ -76,7 +77,7 @@ game switchTo track grid = Mode $ proc input -> do
     velocity <- cumsum -< acceleration ^+^ drag
     position <- cumsum -< velocity
   
-  returnA -< (changeMode_, renderGameState $ GameState position velocity rotation track grid)
+  returnA -< (changeMode_, Output (renderGameState $ GameState position velocity rotation track grid) Nothing)
 
 data GameState = GameState
   { _gs_playerPos     :: Vec World

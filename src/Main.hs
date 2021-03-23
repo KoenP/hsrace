@@ -11,6 +11,7 @@ import Game
 import Editor
 import State
 import SF
+import Types
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
@@ -35,8 +36,8 @@ main = do
   
   -- keymap <- constructKeyMap "keybindings.cfg"
 
-  let game' mode track = game mode track (mkCollisionGrid 50 (map _tsShape track))
-  let sf = runMode (game' (editor game') track)
+  let game' = game (mkCollisionGrid 50 (map _tsShape track))
+  let sf = runMode (game' (editor game') (Layout track undefined))
   -- let sf = runMode (fix (game' . editor))
   runSF sf
   
@@ -56,18 +57,23 @@ main = do
 -- game (editor (game (editor ....)))
 -- game (fix ())
 
-type ProgramState = Either (GameState, EditorState) EditorState
+-- type ProgramState = Either (GameState, EditorState) EditorState
 
-runSF :: (Input ~> Picture) -> IO ()
+runSF :: (Input ~> Output) -> IO ()
 runSF sf
   = playIO
     (InWindow "hsrace test" (1716,1397) (800,600))
     black
     60
-    ([], emptyInput, (blank, sf))
-    (\(_,_,(pic,_)) -> return pic)
+    ([], emptyInput, (Output blank Nothing, sf))
+    (\(_,_,(out@(Output pic _),_)) -> processOutput out >> return pic)
     (\e w -> return (registerEvent e w))
     (glossUpdate updateSF)
+
+processOutput :: Output -> IO ()
+processOutput (Output _ (Just (FileOutput filename content)))
+  = writeFile filename content
+processOutput _ = return ()
 
 -- prog :: Input ~> Picture
 -- prog = 

@@ -17,7 +17,7 @@ renderLayout :: Layout -> Picture
 renderLayout (Layout track pillars)
   = pictures (renderTrack track : map renderPillar pillars)
   where
-    renderPillar (pos , rad) = translateVec pos $ color white $ circle (realToFrac rad)
+    renderPillar (pos , rad) = translatePic pos $ color white $ circle (realToFrac rad)
 
 renderTrack :: Track -> Picture
 renderTrack =
@@ -30,11 +30,6 @@ renderPoint col (Vec x y)
   = color col $ translate (realToFrac x) (realToFrac y) (circle 7)
 
 -- Rotate picture clockwise, given an angle in radians.
-rotatePic :: Float -> Picture -> Picture
-rotatePic = G.rotate . radToDeg
+-- rotatePic :: Float -> Picture -> Picture
+-- rotatePic = G.rotate . radToDeg
 
-applyViewPort :: ViewPort -> Picture -> Picture
-applyViewPort (ViewPort (Vec x y) (Radians rot) zoom)
-  = scale (realToFrac zoom) (realToFrac zoom)
-  . rotate (realToFrac (- rot))
-  . translate (realToFrac (-x)) (realToFrac (-y))
