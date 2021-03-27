@@ -2,13 +2,10 @@ module Editor where
 
 --------------------------------------------------------------------------------
 import Input
-import Editor.LayoutState
 import Editor.Render
-import Editor.Overlay
 import Editor.TrackState
 import Editor.GUI
 import Track
-import RenderTrack
 import SF
 import Vec
 import Types
@@ -25,7 +22,7 @@ type TrackEditCommand = (Maybe Waypoint, Maybe Pillar)
 editor :: Game -> ProgMode
 editor = editor' editorSF
 
-editor' :: (Input ~> (Output, Layout))
+editor' :: (Input ~> (Output, Track))
         -> Game
         -> ProgMode
 editor' edSF switchToF = Mode $ proc input -> do
@@ -33,7 +30,7 @@ editor' edSF switchToF = Mode $ proc input -> do
   changeMode_ <- sampleOnRisingEdge -< (keyDown ChangeMode input, switchToF (editor' edSF' switchToF) track)
   returnA -< (changeMode_, out)
 
-editorSF :: Input ~> (Output, Layout)
+editorSF :: Input ~> (Output, Track)
 editorSF = proc input -> do
   gui_ <- gui -< input
   nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
@@ -44,7 +41,7 @@ editorSF = proc input -> do
                         -< ((input, gui_, dTrackState), nextSubMode)
     trackState <- trackStateSF emptyEditorTrackState -< editCommands
 
-  -- Save current track.
+  -- Save current track, if requested.
   let waypoints = revRev $ _ts_waypointsR trackState
   writeFile
     <- sampleOnRisingEdge
@@ -52,13 +49,10 @@ editorSF = proc input -> do
 
   -- Finalize outputs.
   let pic' = _gui_overlay gui_ pic
-        -- renderEditor
-        -- (OverlayState cursorPos viewPort undefined)
-        -- (LayoutState trackState (PlacingTrack curWidth))
 
   let output = Output pic' writeFile
 
-  returnA -< (output, extractLayout trackState)
+  returnA -< (output, extractTrack trackState)
 
 placingPillarMode :: (Input, GUI, TrackState) ~> (TrackEditCommand, Picture)
 placingPillarMode = proc (input, GUI _ placePillarPos _ _, trackState) -> do

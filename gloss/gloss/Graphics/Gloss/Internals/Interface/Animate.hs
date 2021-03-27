@@ -44,7 +44,9 @@ animateWithBackendIO
         renderS_        <- initState
         renderSR        <- newIORef renderS_
 
-        let displayFun backendRef = do
+        let
+          displayFun :: forall a1. Backend a1 => IORef a1 -> IO ()
+          displayFun backendRef = do
                 -- extract the current time from the state
                 timeS           <- animateSR `getsIORef` AN.stateAnimateTime
 

@@ -41,7 +41,9 @@ interactWithBackend
         renderS         <- initState
         renderSR        <- newIORef renderS
 
-        let displayFun backendRef = do
+        let
+          displayFun :: forall a1. Backend a1 => IORef a1 -> IO ()
+          displayFun backendRef = do
                 world      <- readIORef worldSR
                 picture    <- worldToPicture world
 

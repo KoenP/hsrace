@@ -37,7 +37,9 @@ displayWithBackend
         renderS         <- initState
         renderSR        <- newIORef renderS
 
-        let renderFun backendRef = do
+        let
+          renderFun :: forall a1. Backend a1 => IORef a1 -> IO ()
+          renderFun backendRef = do
                 port       <- viewStateViewPort <$> readIORef viewSR
                 options    <- readIORef renderSR
                 windowSize <- getWindowDimensions backendRef

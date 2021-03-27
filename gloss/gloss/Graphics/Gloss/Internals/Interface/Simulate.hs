@@ -63,7 +63,9 @@ simulateWithBackendIO
         renderS_        <- initState
         renderSR        <- newIORef renderS_
 
-        let displayFun backendRef
+        let
+          displayFun :: forall a1. Backend a1 => IORef a1 -> IO ()
+          displayFun backendRef
              = do
                 -- convert the world to a picture
                 world           <- readIORef worldSR

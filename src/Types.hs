@@ -3,7 +3,7 @@ module Types where
 --------------------------------------------------------------------------------
 import Input (Input)
 import SF
-import Track (Track, Layout)
+import Track (Track)
 
 import Graphics.Gloss (Picture)
 --------------------------------------------------------------------------------
@@ -16,5 +16,5 @@ type ProgMode = Mode Input Output
 
 type ProgSF = Input ~> Output
 
-type Game = ProgMode -> Layout -> ProgMode
+type Game = ProgMode -> Track -> ProgMode
 -- type Editor = 

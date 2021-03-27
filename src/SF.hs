@@ -56,7 +56,7 @@ instance ArrowLoop (~>) where
     in (c, loop sf')
 
 updateSF :: Time -> i -> (o, i ~> o) -> IO (o, i ~> o)
-updateSF dt input (_, SF sf) = return (out, sf')
+updateSF dt input (_, SF sf) = traceShow dt $ return (out, sf')
   where (out, sf') = sf (dt,input)
 
 -- State
@@ -112,7 +112,7 @@ sfCycle bs = head <$> stepper (cycle bs) tail
 -----------
 switch :: (select -> (a ~> b)) -> (a ~> (Maybe select, b)) -> (a ~> b)
 switch select (SF sf) = SF $ \dta -> case sf dta of
-  ((Just  s, _), _  ) -> traceShow "switch!" $ unSF (select s) dta
+  ((Just  s, _), _  ) -> unSF (select s) dta
   ((Nothing, b), sf') -> (b, switch select sf')
 
 rSwitch :: (select -> (a ~> (Maybe select, b))) -> (a ~> (Maybe select, b)) -> (a ~> b)

@@ -17,14 +17,15 @@ executable hsrace2
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       Track,
-                       RenderTrack,
+                       Track.Road,
+                       Track.Polygon,
+                       Track.CollisionGrid,
+                       Track.Render,
                        Vec,
                        Angle,
                        Editor,
-                       Editor.Overlay,
                        Editor.TrackState,
                        Editor.Render,
-                       Editor.LayoutState,
                        Editor.GUI,
                        Input,
                        Game,
@@ -49,7 +50,8 @@ executable hsrace2
                        Arrows,
                        TypeOperators
                        ScopedTypeVariables,
-                       PatternSynonyms
+                       PatternSynonyms,
+                       GADTs
   ghc-options:         -threaded -O -fno-max-relevant-binds
   build-depends:       base >= 4.7 && < 5,
                        gloss,

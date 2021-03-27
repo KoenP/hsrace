@@ -4,6 +4,7 @@ module Editor.TrackState where
 import Vec
 import Angle
 import Track
+import Track.Road
 
 import Control.Lens
 --------------------------------------------------------------------------------
@@ -13,7 +14,7 @@ import Control.Lens
 newtype Rev a = Rev { revKeepReversed :: [a] } deriving (Show, Read, Ord, Eq)
 
 data TrackState = TS
-  { _ts_segmentsCache :: Rev TrackSegment -- Contains all but the last two track segments (the last two are generated every frame) [TODO, not how it works right now, but how it should work probably]
+  { _ts_segmentsCache :: Rev RoadSegment -- Contains all but the last two track segments (the last two are generated every frame) [TODO, not how it works right now, but how it should work probably]
   , _ts_trackCorners  :: (Rev (Vec World), Rev (Vec World)) -- track corners in reverse order (TODO check whether they are)
   , _ts_waypointsR    :: Rev Waypoint -- waypoints in reverse order
   , _ts_pillars       :: [(Vec World , Double)]
@@ -21,12 +22,12 @@ data TrackState = TS
   deriving (Show)
 makeLenses 'TS
 
-extractLayout :: TrackState -> Layout
-extractLayout TS { _ts_waypointsR = waypointsR , _ts_pillars = pillars }
-  = Layout (fromWaypoints (revRev waypointsR)) pillars
+extractTrack :: TrackState -> Track
+extractTrack TS { _ts_waypointsR = waypointsR , _ts_pillars = pillars }
+  = Track (fromWaypoints (revRev waypointsR)) pillars
 
-trackStateFromSaveData :: LayoutSaveData -> TrackState
-trackStateFromSaveData (LayoutSaveData waypoints pillars) =
+trackStateFromSaveData :: TrackSaveData -> TrackState
+trackStateFromSaveData (TrackSaveData waypoints pillars) =
   emptyEditorTrackState
   -- let corners = trackCorners waypoints
   --     track   = trackFromCorners corners
@@ -36,11 +37,15 @@ trackStateFromSaveData (LayoutSaveData waypoints pillars) =
   --       pillars
 
 emptyEditorTrackState :: TrackState
-emptyEditorTrackState = TS revEmpty (revEmpty , revEmpty) (revSingleton (zeroVec, 100)) []
+emptyEditorTrackState
+  = TS revEmpty (revEmpty , revEmpty) (revSingleton (zeroVec, 100)) []
 
 -- | Extend the track state by placing down a new waypoint.
 addWaypoint :: TrackState -> Vec World -> Double -> TrackState
-addWaypoint (TS segmentsR (leftCornersR , rightCornersR) waypointsR pillars) newPos curWidth
+addWaypoint
+  (TS segmentsR (leftCornersR , rightCornersR) waypointsR pillars)
+  newPos
+  curWidth
   -- General case for placing down any but the first track segment.
   | [wLast,wLast2] <- revTakeFromEnd 2 waypointsR
   = let
@@ -48,18 +53,18 @@ addWaypoint (TS segmentsR (leftCornersR , rightCornersR) waypointsR pillars) new
       newWaypoints = waypointsR `revSnoc` wNew
       [headingBefore , headingAfter] = headings [wLast2,wLast,wNew]
       (newLeftCorner , newRightCorner) = waypointCorners wLast headingBefore headingAfter
-      newSegment = TrackSegment [ unsafeRevLast leftCornersR
-                                , newLeftCorner
-                                , newRightCorner
-                                , unsafeRevLast rightCornersR
-                                ]
+      newSegment = RoadSegment [ unsafeRevLast leftCornersR
+                               , newLeftCorner
+                               , newRightCorner
+                               , unsafeRevLast rightCornersR
+                               ]
     in
       TS (segmentsR `revSnoc` newSegment)
          (leftCornersR `revSnoc` newLeftCorner , rightCornersR `revSnoc` newRightCorner)
          newWaypoints
          pillars 
 
-  -- Special case for placing down the very first track segment.
+  -- Special case for placing down the very first road segment.
   | Just (waypoint , width) <- revLast waypointsR
   = let
       headingBefore  = 0
@@ -79,8 +84,8 @@ addPillar :: TrackState -> Pillar -> TrackState
 addPillar trackState pillar = over ts_pillars (pillar:) trackState
 
 -- | Compute the "phantom" segment from the last placed track waypoint to the mouse cursor.
-virtualSegment :: (Vec World , Vec World) -> Vec World -> Double -> Angle -> TrackSegment
-virtualSegment (l0 , r0) newPos width heading = TrackSegment [l0 , l1 , r1 , r0]
+virtualSegment :: (Vec World , Vec World) -> Vec World -> Double -> Angle -> RoadSegment
+virtualSegment (l0 , r0) newPos width heading = RoadSegment [l0 , l1 , r1 , r0]
   where
     l1 = rotVec heading (Vec (-width) 0) ^+^ newPos
     r1 = rotVec heading (Vec   width  0) ^+^ newPos
