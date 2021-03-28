@@ -141,6 +141,12 @@ rotVec (Radians theta) (Vec x y) = Vec
 vecAngle :: Vec w -> Angle
 vecAngle (Vec x y) = Radians (pi/2 - atan2 y x)
 
+internalAngle :: Vec w -> Vec w -> Angle
+internalAngle v w = Radians $ acos $ (v `dot` w) / (norm v * norm w)
+
+signedInternalAngle :: Vec w -> Vec w -> Angle
+signedInternalAngle v w = vecAngle w - vecAngle v
+
 -- | Computes a unit vector from an angle respective to the y axis, clockwise.
 unitvecFromAngle :: Angle -> Vec w
 unitvecFromAngle theta = Vec (rcos alpha) (rsin alpha)
@@ -151,6 +157,10 @@ roundVec = mapVec (fromIntegral . (round :: Double -> Int))
 
 scalarProjectionOnto :: Vec w -> Vec w -> Double
 scalarProjectionOnto b a = (a `dot` b) / norm a
+
+-- TODO recomputes norm
+projectOnto :: Vec w -> Vec w -> Vec w
+projectOnto b a = (b `scalarProjectionOnto` a) *^ normalize a
 
 -- clampedIntegral :: (Vec, Vec) -> Vec -> SF Vec Vec
 -- clampedIntegral bounds init = iterFrom f init
@@ -224,3 +234,6 @@ snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
     newY | y < y'    = realToFrac $ floor y
          | y > y'    = realToFrac $ ceiling y
          | otherwise = realToFrac $ round y
+
+fromPolar :: Double -> Angle -> Vec w
+fromPolar magnitude theta = magnitude *^ unitvecFromAngle theta

@@ -15,6 +15,12 @@ import Debug.Trace
 
 type Pillar = (Vec World, Double)
 
+pillarPushOut :: Pillar -> Vec World -> Maybe (Vec World)
+pillarPushOut (center, radius) vec
+  | delta <- vec ^-^ center, dist <- norm delta, dist <= radius
+  = Just $ center ^+^ (radius / dist) *^ delta
+  | otherwise
+  = Nothing
 
 -- TODO rename and move to own module
 data Track = Track { _lo_road    :: Road
@@ -30,8 +36,5 @@ data TrackSaveData
   deriving (Read, Show)
 makeLenses ''TrackSaveData
 
---------------------------------------------------------------------------------
--- NEW TRACK CONSTRUCTION
---------------------------------------------------------------------------------
 fromSaveData :: TrackSaveData -> Track
 fromSaveData (TrackSaveData waypoints pillars) = Track (fromWaypoints waypoints) pillars

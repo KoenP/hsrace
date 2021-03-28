@@ -2,27 +2,41 @@ module Main where
 
 --------------------------------------------------------------------------------
 import Track
-import Track.Road
+import Editor.TrackState
 import Input
 import Game
 import Editor
 import SF
+import Vec
 import Types
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
 
 import Prelude hiding ((.), id)
+import Control.Exception
+import Text.Read
+import Data.Maybe
 --------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
   -- Read track.
-  saveData <- read <$> readFile "track"
-  let road = fromWaypoints saveData
-  
-  let sf = runMode (game (editor game) (Track road undefined))
+  (track, trackState) <- readTrack
+  let sf = runMode (game (editor trackState game) track)
   runSF sf
+
+readTrack :: IO (Track, TrackState)
+readTrack = do
+  let 
+    def = TrackSaveData [(zeroVec,100),(Vec 0 600,100)] []
+
+    h :: SomeException -> IO TrackSaveData
+    h _ = return def
+
+  saveData <- (fromMaybe def . readMaybe <$> readFile "track") `catch` h
+
+  return (fromSaveData saveData, trackStateFromSaveData saveData)
   
 runSF :: (Input ~> Output) -> IO ()
 runSF sf

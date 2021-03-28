@@ -21,6 +21,6 @@ renderRoad =
   . pictures
   . map (\(RoadSegment vs) -> polygon $ map toTup vs)
 
-renderPoint :: Color -> Vec World -> Picture
+renderPoint :: Color -> Vec w -> Picture
 renderPoint col (Vec x y)
   = color col $ translate (realToFrac x) (realToFrac y) (circle 7)

@@ -28,13 +28,16 @@ extractTrack TS { _ts_waypointsR = waypointsR , _ts_pillars = pillars }
 
 trackStateFromSaveData :: TrackSaveData -> TrackState
 trackStateFromSaveData (TrackSaveData waypoints pillars) =
-  emptyEditorTrackState
-  -- let corners = trackCorners waypoints
-  --     track   = trackFromCorners corners
-  -- in TS (revInit' $ revList track)
-  --       (bimap revList revList corners)
-  --       (revList ((zeroVec,100) : waypoints))
-  --       pillars
+  let corners = bimap init init $ roadCorners waypoints
+      road   = roadFromCorners corners
+  in TS (revList road)
+        (bimap revList revList corners)
+        (revList waypoints)
+        pillars
+
+
+extractSaveData :: TrackState -> TrackSaveData
+extractSaveData (TS _ _ waypointsR pillars) = TrackSaveData (revRev waypointsR) pillars
 
 emptyEditorTrackState :: TrackState
 emptyEditorTrackState

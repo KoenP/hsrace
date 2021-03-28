@@ -19,8 +19,8 @@ import Prelude hiding ((.), id)
 
 type TrackEditCommand = (Maybe Waypoint, Maybe Pillar)
 
-editor :: Game -> ProgMode
-editor = editor' editorSF
+editor :: TrackState -> Game -> ProgMode
+editor ts0 = editor' (editorSF ts0)
 
 editor' :: (Input ~> (Output, Track))
         -> Game
@@ -30,22 +30,21 @@ editor' edSF switchToF = Mode $ proc input -> do
   changeMode_ <- sampleOnRisingEdge -< (keyDown ChangeMode input, switchToF (editor' edSF' switchToF) track)
   returnA -< (changeMode_, out)
 
-editorSF :: Input ~> (Output, Track)
-editorSF = proc input -> do
+editorSF :: TrackState -> (Input ~> (Output, Track))
+editorSF ts0 = proc input -> do
   gui_ <- gui -< input
   nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
   -- out <- runMode placingTrackMode -< (input, gui_)
   rec
-    dTrackState <- delay emptyEditorTrackState -< trackState
+    dTrackState <- delay ts0 -< trackState
     (editCommands, pic) <- cycleSwitch placingTrackMode placingPillarMode
                         -< ((input, gui_, dTrackState), nextSubMode)
-    trackState <- trackStateSF emptyEditorTrackState -< editCommands
+    trackState <- trackStateSF ts0 -< editCommands
 
   -- Save current track, if requested.
-  let waypoints = revRev $ _ts_waypointsR trackState
   writeFile
     <- sampleOnRisingEdge
-    -< (keyDown EditorSave input, FileOutput "track" (show waypoints))
+    -< (keyDown EditorSave input, FileOutput "track" (show (extractSaveData trackState)))
 
   -- Finalize outputs.
   let pic' = _gui_overlay gui_ pic

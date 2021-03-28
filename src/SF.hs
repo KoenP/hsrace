@@ -56,7 +56,7 @@ instance ArrowLoop (~>) where
     in (c, loop sf')
 
 updateSF :: Time -> i -> (o, i ~> o) -> IO (o, i ~> o)
-updateSF dt input (_, SF sf) = traceShow dt $ return (out, sf')
+updateSF dt input (_, SF sf) = return (out, sf')
   where (out, sf') = sf (dt,input)
 
 -- State
@@ -107,6 +107,14 @@ fromInfiniteList bs = head <$> stepper bs tail
 
 sfCycle :: [b] -> (a ~> b)
 sfCycle bs = head <$> stepper (cycle bs) tail
+
+slideShow :: Time -> [b] -> (a ~> b)
+slideShow timeDelay bs = head . fst <$> stateful (cycle bs, 0) step
+  where step dt _ (b:bs, t) = let t' = t + dt
+                              in if t' > timeDelay
+                                 then (bs, t' - timeDelay)
+                                 else (b:bs, t')
+
 
 -- Switches
 -----------

@@ -29,9 +29,6 @@ executable hsrace2
                        Editor.GUI,
                        Input,
                        Game,
-                       State,
-                       Polar,
-                       Waypoints,
                        Util,
                        SF,
                        Types
