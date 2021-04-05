@@ -68,7 +68,7 @@ delay a0 = SF $ \(_,a) -> (a0, delay a)
 -- delayMany bs sf = foldr delay sf bs
 
 stepper :: a -> (a -> a) -> (b ~> a)
-stepper s0 update = SF $ const (s0, stepper (update s0) update)
+stepper s0 update = SF $ const $ let s1 = update s0 in (s1, stepper s1 update)
 
 stateful :: s -> (Time -> i -> s -> s) -> (i ~> s)
 stateful a0 update = SF sf
@@ -99,6 +99,9 @@ integral = integralFrom zeroVec
 clampedIntegralFrom :: (Vec w,Vec w) -> Vec w -> (Vec w ~> Vec w)
 clampedIntegralFrom bounds v0 = stateful v0 step
   where step dt v acc = clampVec bounds (acc ^+^ dt*^v)
+
+recentHistory :: Int -> (a ~> [a])
+recentHistory nFrames = stateful [] $ \_ a as -> take nFrames (a:as)
 
 -- Streams
 ----------

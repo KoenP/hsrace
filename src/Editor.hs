@@ -34,12 +34,14 @@ editorSF :: TrackState -> (Input ~> (Output, Track))
 editorSF ts0 = proc input -> do
   gui_ <- gui -< input
   nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
+  clearTrackState <- risingEdge -< keyDown EditorClear input
+
   -- out <- runMode placingTrackMode -< (input, gui_)
   rec
     dTrackState <- delay ts0 -< trackState
     (editCommands, pic) <- cycleSwitch placingTrackMode placingPillarMode
                         -< ((input, gui_, dTrackState), nextSubMode)
-    trackState <- trackStateSF ts0 -< editCommands
+    trackState <- trackStateSF ts0 -< (editCommands, clearTrackState)
 
   -- Save current track, if requested.
   writeFile
@@ -94,7 +96,8 @@ trackStateUpdate ts (Just (pos,width), _          ) = addWaypoint ts pos width
 trackStateUpdate ts (Nothing         , Just pillar) = addPillar ts pillar
 trackStateUpdate ts (Nothing         , Nothing)     = ts
 
-trackStateSF :: TrackState -> (TrackEditCommand ~> TrackState)
-trackStateSF ts0 = stateful ts0 (const (flip trackStateUpdate))
+trackStateSF :: TrackState -> ((TrackEditCommand, Bool) ~> TrackState)
+trackStateSF ts0 = second (arr $ \b -> if b then Just emptyEditorTrackState else Nothing)
+  >>> stateWithReset ts0 (const (flip trackStateUpdate))
   
 

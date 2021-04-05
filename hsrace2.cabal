@@ -21,6 +21,7 @@ executable hsrace2
                        Track.Polygon,
                        Track.CollisionGrid,
                        Track.Render,
+                       Track.Bezier,
                        Vec,
                        Angle,
                        Editor,

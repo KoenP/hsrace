@@ -22,6 +22,7 @@ data Dir = DirUp | DirDown | DirLeft | DirRight
 data GameKey
   = Accelerating | Dir Dir | ChangeMode | LaunchHook
   | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
+  | EditorClear
   deriving (Eq, Ord, Show, Read)
 
 data Input = Input
@@ -68,6 +69,7 @@ constructInput (Input down _ _) events
     lookupKey (Char 'd')                = [Dir DirRight]
     lookupKey (Char 'm')                = [ChangeMode]
     lookupKey (Char 'z')                = [EditorSave]
+    lookupKey (Char 'c')                = [EditorClear]
     lookupKey _                         = []
 
     insertAll :: Ord a => [a] -> Set a -> Set a

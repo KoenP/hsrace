@@ -29,9 +29,10 @@ type HookMode = HookAttachedCheck -> Mode (Input, Vec World, Vec World) Hook
 
 k_acceleration, k_drag, k_hookSpeed :: Double
 k_acceleration = 0.2
-k_drag         = 0.001
+k_drag         = 0.004
+-- k_drag         = 0.001
 k_dragOffroad  = 0.1
-k_hookSpeed    = 40
+k_hookSpeed    = 80
 
 onRoad :: CollisionGrid Polygon -> Vec World -> Bool
 onRoad grid v = True -- any (v `pointInPolygon`) (grid `collisionGridLookup` v)
@@ -131,8 +132,6 @@ game switchTo track@(Track road pillars) =
   
     -- Position and heading.
     let accelerating = keyDown Accelerating input
-    let Input { _input_mouseMovement = (Vec mouseDx _)} = input
-
     rec
       let
         -- cursorWorldPos = windowCoordsToWorldCoords dViewPort cursorPos
@@ -153,9 +152,17 @@ game switchTo track@(Track road pillars) =
 
     thrustAnim <- thrusterAnimation -< (accelerating, rotation)
     
+    frameNr <- counter -< False
+    let test | frameNr `mod` 60 == 0 = traceShow frameNr
+             | otherwise             = id
 
-    returnA -< (changeMode_, Output (pictures [renderGameState cursorPos position rotation track hook, thrustAnim]) Nothing)
+    returnA -<
+      test (changeMode_, Output (pictures [renderGameState cursorPos position rotation track hook, thrustAnim]) Nothing)
 
+-- traceAnimation :: (Vec World, Angle) ~> Picture
+-- traceAnimation = proc (pos, rot) -> do
+--   let pic = translatePic pos $ rotatePic rot playerPic
+--   returnA -< _
 
 thrusterAnimation :: (Bool, Angle) ~> Picture
 thrusterAnimation =

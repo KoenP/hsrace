@@ -141,6 +141,10 @@ rotVec (Radians theta) (Vec x y) = Vec
 vecAngle :: Vec w -> Angle
 vecAngle (Vec x y) = Radians (pi/2 - atan2 y x)
 
+lerp :: VectorSpace v a => v -> v -> a -> v
+lerp v1 v2 = let delta = v2 ^-^ v1
+             in \t -> v1 ^+^ t *^ delta
+
 internalAngle :: Vec w -> Vec w -> Angle
 internalAngle v w = Radians $ acos $ (v `dot` w) / (norm v * norm w)
 
@@ -191,6 +195,9 @@ data ViewPort = ViewPort { _vpPos  :: Vec World
                          , _vpRot  :: Angle
                          , _vpZoom :: Double
                          }
+
+defaultViewPort :: ViewPort
+defaultViewPort = ViewPort zeroVec 0 1
 
 updateViewPort :: Vec Window -> Angle -> Double -> ViewPort -> ViewPort
 updateViewPort (Vec dx dy) drot dzoom (ViewPort pos rot zoom)

@@ -2,6 +2,7 @@ module Main where
 
 --------------------------------------------------------------------------------
 import Track
+import Track.Bezier
 import Editor.TrackState
 import Input
 import Game
@@ -24,7 +25,8 @@ main = do
   -- Read track.
   (track, trackState) <- readTrack
   let sf = runMode (game (editor trackState game) track)
-  runSF sf
+  -- runSF sf
+  runSF bezierEdit
 
 readTrack :: IO (Track, TrackState)
 readTrack = do
