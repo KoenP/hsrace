@@ -74,6 +74,9 @@ stateful :: s -> (Time -> i -> s -> s) -> (i ~> s)
 stateful a0 update = SF sf
   where sf (dt,b) = let a1 = update dt b a0 in (a1, stateful a1 update)
 
+stateful' :: s -> (i -> s -> s) -> (i ~> s)
+stateful' a0 update = stateful a0 (const update)
+
 stateWithReset :: a -> (Time -> b -> a -> a) -> ((b, Maybe a) ~> a)
 stateWithReset a0 update = SF sf
   where

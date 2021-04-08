@@ -219,6 +219,9 @@ u <-> v = norm (v ^-^ u)
 perp :: Vec w -> Vec w
 perp (Vec x y) = Vec (-y) x
 
+mirrorOn :: Vec w -> Vec w -> Vec w
+u `mirrorOn` v =  v ^+^ (v ^-^ u)
+
 ignoreCoordinateSystem :: Vec u -> Vec w
 ignoreCoordinateSystem (Vec x y) = Vec x y
 
