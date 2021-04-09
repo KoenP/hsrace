@@ -28,7 +28,8 @@ data GameKey
 data Input = Input
   { _input_keysDown      :: Set GameKey
   , _input_keysTriggered :: Set GameKey
-  , _input_mouseMovement :: Vec Window
+  -- , _input_mouseMovement :: Vec Window
+  , _input_cursorPos     :: Vec Window
   }
 makeLenses 'Input
 
@@ -42,20 +43,20 @@ emptyInput :: Input
 emptyInput = Input Set.empty Set.empty zeroVec
 
 constructInput :: Input -> [Event] -> Input
-constructInput (Input down _ _) events
+constructInput (Input down _ cursorPos) events
   = Input ((down `Set.union` keysTriggered) Set.\\ keysReleased) keysTriggered mouseMovement
   where
     keysTriggered, keysReleased :: Set GameKey
     mouseMovement :: Vec Window
     (keysTriggered, keysReleased, mouseMovement)
-      = foldl' step (Set.empty, Set.empty, zeroVec) events
+      = foldl' step (Set.empty, Set.empty, cursorPos) events
 
     step (keysTriggered, keysReleased, mouseMovement) (EventKey key Down _ _)
       = (lookupKey key `insertAll` keysTriggered, keysReleased, mouseMovement)
     step (keysTriggered, keysReleased, mouseMovement) (EventKey key Up _ _)
       = (keysTriggered, lookupKey key `insertAll` keysReleased, mouseMovement)
     step (keysTriggered, keysReleased, mouseMovement) (EventMotion v)
-      = (keysTriggered, keysReleased, mouseMovement ^+^ fromTup v ^-^ Vec 0 0.5)
+      = (keysTriggered, keysReleased, fromTup v) -- mouseMovement ^+^ fromTup v ^-^ Vec 0 0.5)
        -- The Vec 0 0.5 fixes a really weird bug in gloss (TODO: dig into gloss to fix the bug properly)
     step i _ = i
 

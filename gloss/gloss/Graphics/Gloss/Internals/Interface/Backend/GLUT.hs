@@ -85,9 +85,11 @@ instance Backend GLUTState where
         sleep _ sec
          = do   threadDelay (round $ sec * 1000000)
 
+        -- Koen: edit here to enable/disable cursor centering
         centerCursor s
-         = do   (w,h) <- getWindowDimensions s
-                GLUT.pointerPosition $= GLUT.Position (fromIntegral $ w `div` 2) (fromIntegral $ h `div` 2)
+         = return ()
+         -- = do   (w,h) <- getWindowDimensions s
+         --        GLUT.pointerPosition $= GLUT.Position (fromIntegral $ w `div` 2) (fromIntegral $ h `div` 2)
 
 
 -- Initialise -----------------------------------------------------------------
@@ -156,7 +158,8 @@ openWindowGLUT _ display
                _ <- GLUT.createWindow "Gloss Application"
                GLUT.fullScreen
 
-        GLUT.cursor $= GLUT.None
+        -- Koen: edit here to show/hide cursor
+        -- GLUT.cursor $= GLUT.None
 
         --  Switch some things.
         --  auto repeat interferes with key up / key down checks.

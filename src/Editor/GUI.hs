@@ -23,15 +23,16 @@ gui = proc input -> do
   -- User interface: cursor and viewport.
   let
     adjusting                  = keyDown EditorAdjust input
-    mouseMovement              = _input_mouseMovement input
-    cursorMovement | adjusting = zeroVec
-                   | otherwise = 0.1 *^ mouseMovement
-  cursorPos <- cumsum     -< cursorMovement
+    -- mouseMovement              = _input_mouseMovement input
+    -- cursorMovement | adjusting = zeroVec
+    --                | otherwise = 0.1 *^ mouseMovement
+  -- cursorPos <- cumsum     -< cursorMovement
+  let cursorPos = _input_cursorPos input
   viewPort  <- viewPortSF -< input
 
   let
     renderFun pic  = pictures
-      [applyViewPort viewPort pic, plusPicture white cursorPos 7]
+      [applyViewPort viewPort pic] --, plusPicture white cursorPos 7]
     cursorWorldPos = windowCoordsToWorldCoords viewPort cursorPos
 
   returnA -< GUI cursorPos cursorWorldPos viewPort renderFun

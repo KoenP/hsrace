@@ -7,6 +7,9 @@ import Angle
 import Graphics.Gloss
 
 import Debug.Trace
+import Data.List
+import Data.Map (Map)
+import qualified Data.Map as Map
 --------------------------------------------------------------------------------
 
 traceResult :: Show a => a -> a
@@ -48,3 +51,27 @@ mergeMaybes :: (Maybe a, Maybe b) -> Maybe (Either a b)
 mergeMaybes (Just a , _     ) = Just (Left a)
 mergeMaybes (Nothing, Just b) = Just (Right b)
 mergeMaybes _                 = Nothing
+
+mapDeleteMany :: Ord k => [k] -> Map k a -> Map k a
+mapDeleteMany keys map = foldl' (flip Map.delete) map keys
+
+mapInsertMany :: Ord k => [(k,a)] -> Map k a -> Map k a
+mapInsertMany kvPairs map = Map.fromList kvPairs `Map.union` map
+
+editMap :: Ord k => [(k,a)] -> [k] -> Map k a -> Map k a
+editMap inserts deletes = mapInsertMany inserts . mapDeleteMany deletes
+
+-- | Construct a lookup table with possibly multiple results for each key.
+--   The original order is not preserved.
+multiMapFromList :: Ord k => [(k,a)] -> Map k [a]
+multiMapFromList
+  = foldl'
+    (\m (k,a) -> Map.alter (cons a) k m)
+    Map.empty
+  where
+    cons a Nothing   = Just [a]
+    cons a (Just as) = Just (a:as)
+
+infixr 0 |>
+(|>) :: a -> (a -> b) -> b
+x |> f = f x

@@ -12,6 +12,9 @@ import Prelude hiding ((.), id)
 import Control.Category
 import Control.Arrow
 import Debug.Trace
+import Data.Bool
+import Data.Map (Map)
+import qualified Data.Map as Map
 --------------------------------------------------------------------------------
 
 type Time = Double
@@ -161,11 +164,29 @@ cycleSwitch (SF sf1) (SF sf2) = SF $ \case
   (dt, (i, True))  -> let (o, sf2') = sf2 (dt,i) in (o, cycleSwitch sf2' (SF sf1))
   (dt, (i, False)) -> let (o, sf1') = sf1 (dt,i) in (o, cycleSwitch sf1' (SF sf2))
 
+count :: (a -> Bool) -> (a ~> Int)
+count pred = (bool 0 1 . pred) ^>> stateful' 0 (+)
+
+countEvents :: Maybe a ~> Int
+countEvents = length ^>> stateful' 0 (+)
+
 -- Collections
 --------------
 col :: Functor f => f (a ~> b) -> (a ~> f b)
 col sfs = SF $ \dta -> let fsf = fmap (\(SF sf) -> sf dta) sfs
                       in (fmap fst fsf, col (fmap snd fsf))
+
+sfMap :: forall id i o. Ord id => ([id], [(id, i ~> o)], i) ~> Map id o
+sfMap = fmap fst <$> stateful Map.empty step
+  where
+    advance :: Time -> i -> (i ~> o) -> (o, i ~> o)
+    advance = curry (flip unSF)
+
+    step :: Time -> ([id], [(id, i ~> o)], i) -> Map id (o, i ~> o) -> Map id (o, i ~> o)
+    step dt (toDelete, newSFs, input) state = state
+      |>  mapDeleteMany toDelete
+      >>> fmap (advance dt input . snd)
+      >>> mapInsertMany [(id, advance dt input sf) | (id, sf) <- newSFs]
 
 -- Events
 ---------
@@ -205,8 +226,3 @@ sim (x:xs) (SF sf) = let (y, sf') = sf (1,x) in y : sim xs sf'
 sim' :: Int -> (() ~> b) -> [b]
 sim' n sf = sim (replicate n ()) sf 
 
-counter :: Bool ~> Int
-counter = proc reset -> do
-  rec output <- returnA -< if reset then 0 else next
-      next <- delay 0 -< output+1
-  returnA -< output

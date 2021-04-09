@@ -164,7 +164,7 @@ openWindowGLFW ref FullScreen
         -- Try to enable sync-to-vertical-refresh by setting the number
         -- of buffer swaps per vertical refresh to 1.
         GLFW.swapInterval 1
-        --GLFW.enableMouseCursor
+        GLFW.enableMouseCursor
         GLFW.setCursorInputMode (fromJust win) GLFW.CursorInputMode'Normal
 
 

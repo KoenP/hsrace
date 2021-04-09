@@ -13,6 +13,7 @@ import Editor.GUI
 import Graphics.Gloss
   
 import Data.List
+import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Prelude hiding (id, (.))
@@ -99,15 +100,6 @@ draggableSegment radius seg0 = runMode (notSelectedMode seg0)
                                           , dragAnchorMode seg
                                           ]
             ]
-            -- (zipWith (\offset f -> (offset, f offset)) offsets
-            --    [ dragEndPointMode False seg
-            --    , dragEndPointMode True  seg 
-            --    , dragAnchorMode seg
-            --    ])
-            -- (offsets `zip` [ 
-            --                , dragEndPointMode True  seg (offsets !! 1)
-            --                , dragAnchorMode seg (offsets !! 2)
-            --                ])
 
       event <- sampleOnRisingEdge -< (selecting && inRange, nextMode)
       returnA -< (event, seg)
@@ -137,6 +129,35 @@ draggableSegment radius seg0 = runMode (notSelectedMode seg0)
       event <- sampleOnRisingEdge -< (not selecting, notSelectedMode segment)
       returnA -< (event, segment)
 
+bezierEdit' :: Input ~> Output
+bezierEdit' = proc input -> do
+  GUI _ cursorWorldPos _ overlay <- gui -< input
+
+  let
+    newWaypoint   = keyDown EditorAdjust input
+    dragging      = keyDown EditorCommit input
+    waypointInput = (cursorWorldPos, dragging)
+    segment       = Segment cursorWorldPos (Vec 0 (-50), Vec 0 50)
+
+  nextId <- count (==True) -< newWaypoint
+  newSFEvent <- sampleOnRisingEdge -< (newWaypoint, (nextId, draggableSegment 20 segment))
+  waypoints <- sfMap -< ([], maybeToList newSFEvent, waypointInput)
+
+  let
+    segments = Map.elems waypoints
+    anchors = map anchor segments
+    endpoints = concatMap ((\(x,y) -> [x,y]) . endpointsAbsolute) segments
+    anchorPics = map (renderPoint red) anchors
+    controlPointPics = map (renderPoint green) endpoints
+    cubicBeziers = zipWith
+      (\(Segment anchor1 (_,c1)) (Segment anchor2 (c2,_))
+       -> CubicBezier (anchor1,anchor2) (c1 ^+^ anchor1, c2 ^+^ anchor2))
+      segments (tail segments)
+
+    curvesPic = pictures $ map (renderBezier 50) cubicBeziers
+  
+  returnA -< Output (overlay $ pictures (curvesPic : anchorPics ++ controlPointPics)) Nothing
+
 bezierEdit :: Input ~> Output
 bezierEdit = proc input -> do
   GUI _ cursorWorldPos _ overlay <- gui -< input
@@ -147,15 +168,23 @@ bezierEdit = proc input -> do
     -< (cursorWorldPos, select)
   seg2@(Segment anchor2 _) <- draggableSegment 20 (Segment (Vec 100 0) (Vec 0 (-50) , Vec 0 50))
     -< (cursorWorldPos, select)
+  seg3@(Segment anchor3 _) <- draggableSegment 20 (Segment (Vec 200 0) (Vec 0 (-50) , Vec 0 50))
+    -< (cursorWorldPos, select)
 
-  -- let bezier = CubicBezier (anchor1, anchor2) () 
+  let
+    (_ ,e2)  = endpointsAbsolute seg1
+    (f1,f2)  = endpointsAbsolute seg2
+    (g1,_ )  = endpointsAbsolute seg3
+    bezier1  = CubicBezier (anchor1, anchor2) (e2,f1)
+    bezier2  = CubicBezier (anchor2, anchor3) (f2,g1)
+    curvePic = pictures [renderBezier 100 bezier1, renderBezier 100 bezier2]
   let
     (e1,e2) = endpointsAbsolute seg1
     (f1,f2) = endpointsAbsolute seg2
     anchorPics = map (renderPoint red) [anchor1, anchor2]
     controlPointPics = map (renderPoint green) [e1, e2, f1, f2]
 
-  returnA -< Output (overlay $ pictures (anchorPics ++ controlPointPics)) Nothing
+  returnA -< Output (overlay $ pictures (curvePic : anchorPics ++ controlPointPics)) Nothing
   -- (e1, _) <- draggable 30 zeroVec          -< (cursorWorldPos, select)
   -- (e2, _) <- draggable 30 (Vec 300 0)      -< (cursorWorldPos, select)
   -- (c1, _) <- draggable 30 (Vec 100 100)    -< (cursorWorldPos, select)

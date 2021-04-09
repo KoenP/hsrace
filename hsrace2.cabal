@@ -50,7 +50,7 @@ executable hsrace2
                        ScopedTypeVariables,
                        PatternSynonyms,
                        GADTs
-  ghc-options:         -threaded -O -fno-max-relevant-binds
+  ghc-options:         -threaded -O
   build-depends:       base >= 4.7 && < 5,
                        gloss,
                        ConfigFile,

@@ -58,7 +58,7 @@ editorSF ts0 = proc input -> do
 placingPillarMode :: (Input, GUI, TrackState) ~> (TrackEditCommand, Picture)
 placingPillarMode = proc (input, GUI _ placePillarPos _ _, trackState) -> do
   let
-    Vec _ mouseDy = _input_mouseMovement input
+    Vec _ mouseDy = error "fix this in Editor" -- _input_mouseMovement input
     adjusting = keyDown EditorAdjust input
     dRadius | adjusting = mouseDy
             | otherwise = zeroVec
@@ -75,7 +75,7 @@ placingTrackMode :: (Input, GUI, TrackState) ~> (TrackEditCommand, Picture)
 placingTrackMode = proc (input, gui, trackState) -> do
   -- Change track width.
   let
-    Vec _ mouseDy      = _input_mouseMovement input
+    Vec _ mouseDy      = error "fix this in Editor" -- _input_mouseMovement input
     adjusting          = keyDown EditorAdjust input
     dWidth | adjusting = mouseDy
            | otherwise = zeroVec

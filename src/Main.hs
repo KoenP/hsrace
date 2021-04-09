@@ -26,7 +26,7 @@ main = do
   (track, trackState) <- readTrack
   let sf = runMode (game (editor trackState game) track)
   -- runSF sf
-  runSF bezierEdit
+  runSF bezierEdit'
 
 readTrack :: IO (Track, TrackState)
 readTrack = do

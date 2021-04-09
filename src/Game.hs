@@ -125,10 +125,10 @@ game switchTo track@(Track road pillars) =
     changeMode_ <- changeMode switchTo -< input
 
     -- Orient the player.
-    let
-      mouseMovement  = _input_mouseMovement input
-      cursorMovement = 0.1 *^ mouseMovement
-    cursorPos <- cumsum     -< cursorMovement
+    -- let
+    --   mouseMovement  = _input_mouseMovement input
+    --   cursorMovement = 0.1 *^ mouseMovement
+    let cursorPos = _input_cursorPos input
   
     -- Position and heading.
     let accelerating = keyDown Accelerating input
@@ -152,12 +152,8 @@ game switchTo track@(Track road pillars) =
 
     thrustAnim <- thrusterAnimation -< (accelerating, rotation)
     
-    frameNr <- counter -< False
-    let test | frameNr `mod` 60 == 0 = traceShow frameNr
-             | otherwise             = id
-
     returnA -<
-      test (changeMode_, Output (pictures [renderGameState cursorPos position rotation track hook, thrustAnim]) Nothing)
+      (changeMode_, Output (pictures [renderGameState cursorPos position rotation track hook, thrustAnim]) Nothing)
 
 -- traceAnimation :: (Vec World, Angle) ~> Picture
 -- traceAnimation = proc (pos, rot) -> do
