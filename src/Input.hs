@@ -22,7 +22,8 @@ data Dir = DirUp | DirDown | DirLeft | DirRight
 data GameKey
   = Accelerating | Dir Dir | ChangeMode | LaunchHook
   | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
-  | EditorClear
+  | EditorClear | EditorDelete
+  | ZoomIn | ZoomOut
   deriving (Eq, Ord, Show, Read)
 
 data Input = Input
@@ -30,7 +31,7 @@ data Input = Input
   , _input_keysTriggered :: Set GameKey
   -- , _input_mouseMovement :: Vec Window
   , _input_cursorPos     :: Vec Window
-  }
+  } deriving Show
 makeLenses 'Input
 
 keyDown :: GameKey -> Input -> Bool
@@ -63,7 +64,10 @@ constructInput (Input down _ cursorPos) events
     lookupKey :: Key -> [GameKey]
     lookupKey (MouseButton LeftButton)  = [Accelerating, EditorCommit]
     lookupKey (MouseButton RightButton) = [EditorAdjust, LaunchHook]
+    lookupKey (MouseButton WheelUp)     = [ZoomIn]
+    lookupKey (MouseButton WheelDown)   = [ZoomOut]
     lookupKey (SpecialKey KeySpace)     = [EditorNextSubMode]
+    lookupKey (SpecialKey KeyDelete)    = [EditorDelete]
     lookupKey (Char 'w')                = [Dir DirUp]
     lookupKey (Char 'a')                = [Dir DirLeft]
     lookupKey (Char 's')                = [Dir DirDown]

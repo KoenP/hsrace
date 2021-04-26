@@ -70,6 +70,16 @@ instance VectorSpace (Vec w) Double where
   norm (Vec x y)            = sqrt (x*x + y*y)
   normalize v               = let norm_v = norm v
                               in if nearZero norm_v then zeroVec else  v ^/ norm_v
+instance VectorSpace Int Int where
+  zeroVec   = 0
+  (^+^)     = (+)
+  (^-^)     = (-)
+  (*^)      = (*)
+  (^/)      = div
+  neg       = negate
+  dot       = (*)
+  norm      = id
+  normalize = const 1
 
 instance VectorSpace Double Double where
   zeroVec   = 0
@@ -247,3 +257,4 @@ snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
 
 fromPolar :: Double -> Angle -> Vec w
 fromPolar magnitude theta = magnitude *^ unitvecFromAngle theta
+

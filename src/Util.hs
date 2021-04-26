@@ -6,10 +6,12 @@ import Angle
 
 import Graphics.Gloss
 
+import Control.Monad
 import Debug.Trace
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 --------------------------------------------------------------------------------
 
 traceResult :: Show a => a -> a
@@ -27,6 +29,9 @@ scalePic a = let a' = realToFrac a in scale a' a'
 linePic :: [Vec w] -> Picture
 linePic = line . map toTup
 
+polygonPic :: [Vec w] -> Picture
+polygonPic = polygon . map toTup
+
 arcPic :: Angle -> Angle -> Double -> Picture
 arcPic a1 a2 rad = let Degrees d1 = toPicAngle a1
                        Degrees d2 = toPicAngle a2
@@ -41,6 +46,19 @@ nag :: [a] -> [a]
 nag []      = []
 nag [x]    = repeat x
 nag (x:xs) = x : nag xs
+
+safeHead :: [a] -> Maybe a
+safeHead (x:_) = Just x
+safeHead _     = Nothing
+
+safeMinimumBy :: (a -> a -> Ordering) -> [a] -> Maybe a
+safeMinimumBy _    [] = Nothing
+safeMinimumBy comp l  = Just (minimumBy comp l)
+
+-- | Keep approximately one out of every (n+1) entries in a list.
+thinOut :: Int -> [a] -> [a]
+thinOut _ []     = []
+thinOut n (x:xs) = x : thinOut n (drop n xs)
 
 interleave :: [a] -> [a] -> [a]
 interleave (x:xs) (y:ys) = x : y : interleave xs ys
@@ -58,6 +76,9 @@ mapDeleteMany keys map = foldl' (flip Map.delete) map keys
 mapInsertMany :: Ord k => [(k,a)] -> Map k a -> Map k a
 mapInsertMany kvPairs map = Map.fromList kvPairs `Map.union` map
 
+mapAdjustMany :: Ord k => [(k, a -> a)] -> Map k a -> Map k a
+mapAdjustMany adjusters map0 = foldl' (\map (k,f) -> Map.adjust f k map) map0 adjusters 
+
 editMap :: Ord k => [(k,a)] -> [k] -> Map k a -> Map k a
 editMap inserts deletes = mapInsertMany inserts . mapDeleteMany deletes
 
@@ -72,6 +93,13 @@ multiMapFromList
     cons a Nothing   = Just [a]
     cons a (Just as) = Just (a:as)
 
+multiMapLookup :: Ord k => k -> Map k [a] -> [a]
+multiMapLookup k = join . maybeToList . Map.lookup k
+
 infixr 0 |>
 (|>) :: a -> (a -> b) -> b
 x |> f = f x
+
+boolToInt :: Bool -> Int
+boolToInt True  = 1
+boolToInt False = 0

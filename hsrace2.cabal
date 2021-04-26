@@ -32,6 +32,7 @@ executable hsrace2
                        Game,
                        Util,
                        SF,
+                       Grid,
                        Types
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5

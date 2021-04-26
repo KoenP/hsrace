@@ -15,6 +15,7 @@ import Debug.Trace
 import Data.Bool
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Bifunctor as Bifunctor
 --------------------------------------------------------------------------------
 
 type Time = Double
@@ -59,7 +60,7 @@ instance ArrowLoop (~>) where
     in (c, loop sf')
 
 updateSF :: Time -> i -> (o, i ~> o) -> IO (o, i ~> o)
-updateSF dt input (_, SF sf) = return (out, sf')
+updateSF dt input (_, SF sf) = trace "---" $ return (out, sf')
   where (out, sf') = sf (dt,input)
 
 -- State
@@ -108,6 +109,11 @@ clampedIntegralFrom bounds v0 = stateful v0 step
 
 recentHistory :: Int -> (a ~> [a])
 recentHistory nFrames = stateful [] $ \_ a as -> take nFrames (a:as)
+
+setter :: a -> Maybe a ~> a
+setter a0 = stateful' a0 update
+  where update Nothing  a = a
+        update (Just a) _ = a
 
 -- Streams
 ----------
@@ -187,6 +193,25 @@ sfMap = fmap fst <$> stateful Map.empty step
       |>  mapDeleteMany toDelete
       >>> fmap (advance dt input . snd)
       >>> mapInsertMany [(id, advance dt input sf) | (id, sf) <- newSFs]
+
+-- | Like sfMap, but only updates those signal functions that have an input
+--   directly addressed to them.
+sparseUpdater :: forall id i o. Ord id => Map id (o,i~>o) -> ([id], [(id, (o,i~>o))], [(id,i)]) ~> Map id o
+sparseUpdater map0 = fmap fst <$> stateful map0 step
+  where
+    applyInput :: Time -> i -> (o, i ~> o) -> (o, i ~> o)
+    applyInput dt i (_, SF sf) = sf (dt,i)
+
+    step :: Time -> ([id], [(id, (o,i~>o))], [(id,i)]) -> Map id (o, i ~> o) -> Map id (o, i ~> o)
+    step dt (toDelete, newSFs, addressedInputs) state = state
+      |>  mapDeleteMany toDelete
+      >>> mapInsertMany newSFs
+      >>> mapAdjustMany (map (Bifunctor.second (applyInput dt)) addressedInputs)
+
+-- grid :: (w -> [Vec u]) -> (i -> Vec u) -> ([id], [(id,i ~> w)], i) ~> [w]
+-- grid = undefined
+
+
 
 -- Events
 ---------
