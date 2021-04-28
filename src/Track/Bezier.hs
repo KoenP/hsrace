@@ -35,9 +35,11 @@ type PathConfig = [(Vec World, Vec World)]
 
 data Waypoint = Waypoint { anchor :: Vec World, controlPointsOffsets :: ControlPoints World }
   deriving Show
+newtype WaypointID = WaypointID Int
+  deriving (Show, Eq, Ord)
 
-wpVecs :: Waypoint -> [Vec World]
-wpVecs (Waypoint anchor (cp1,cp2)) = [anchor, cp1, cp2]
+wpVecsAbsolute :: Waypoint -> [Vec World]
+wpVecsAbsolute (Waypoint anchor (cp1,cp2)) = [anchor, cp1 ^+^ anchor, cp2 ^+^ anchor]
 
 bezierTest :: Picture
 bezierTest = renderBezier 50 $ CubicBezier (zeroVec , Vec 300 0) (Vec 100 100 , Vec 200 (-100))
@@ -50,7 +52,7 @@ flipWaypointControlPoints (Waypoint anchor (e1,e2)) = Waypoint anchor (e2,e1)
 
 
 controlNodeRadius :: Double
-controlNodeRadius = 12
+controlNodeRadius = 15
 
 cellSize = 50
 
@@ -114,38 +116,40 @@ gridIndex (Vec x y) = (floor (x / cellSize), floor (y / cellSize))
 -- 
 --           returnA -< undefined
 
-waypoint :: Double -> Waypoint -> ((Vec World, Bool) ~> Waypoint)
+waypoint :: Double -> Waypoint -> ((Vec World, Bool) ~> (Waypoint, Picture))
 waypoint radius seg0 = runMode (notSelectedMode seg0)
   where
-    notSelectedMode  :: Waypoint -> Mode (Vec World, Bool) Waypoint
-    notSelectedMode seg@(Waypoint anchor (p1,p2)) = Mode $ proc (cursorWorldPos, selecting) -> do
+    notSelectedMode  :: Waypoint -> Mode (Vec World, Bool) (Waypoint, Picture)
+    notSelectedMode seg@(Waypoint anchor _) = Mode $ proc (cursorWorldPos, selecting) -> do
       let
         (e1,e2)   = controlPointsAbsolute seg
         offsets   = [v ^-^ cursorWorldPos | v <- [e1, e2, anchor]]
         inRange   = any ((<= radius) . norm) offsets
-        nextMode  = snd
-          $ minimumBy
-            (compare `on` (norm . fst))
-            [ (offset, f offset)
-            | (offset, f) <- offsets `zip` [ dragControlPointMode False seg
-                                          , dragControlPointMode True  (flipWaypointControlPoints seg) 
-                                          , dragAnchorMode seg
-                                          ]
+        (_, nextMode, highlighted)  = minimumBy
+            (compare `on` (norm . fst3))
+            [ (offset, f offset, id)
+            | (offset, f, id) <- zip3 offsets
+                                      [ dragControlPointMode False seg
+                                      , dragControlPointMode True  (flipWaypointControlPoints seg) 
+                                      , dragAnchorMode seg
+                                      ]
+                                      [1,2,0] -- this is just horrible
             ]
 
       selectingRisingEdge <- risingEdge -< selecting
       event <- sampleOnRisingEdge -< (selectingRisingEdge && inRange, nextMode)
-      returnA -< (event, seg)
 
-    dragAnchorMode :: Waypoint -> Vec World -> Mode (Vec World, Bool) Waypoint
+      returnA -< (event, (seg, render seg (guard inRange >> Just highlighted)))
+
+    dragAnchorMode :: Waypoint -> Vec World -> Mode (Vec World, Bool) (Waypoint, Picture)
     dragAnchorMode seg0 offset = Mode $ proc (cursorWorldPos, selecting) -> do
       let anchor = cursorWorldPos ^+^ offset
       let seg    = seg0 { anchor = anchor }
       event <- sampleOnRisingEdge -< (not selecting, notSelectedMode seg)
-      returnA -< (event, seg)
+      returnA -< (event, (seg, render seg (Just 0)))
 
-    dragControlPointMode :: Bool -> Waypoint -> Vec World -> Mode (Vec World, Bool) Waypoint
-    dragControlPointMode flip (Waypoint anchor (e1init,e2init)) offset = Mode $ proc (cursorWorldPos, selecting) -> do
+    dragControlPointMode :: Bool -> Waypoint -> Vec World -> Mode (Vec World, Bool) (Waypoint, Picture)
+    dragControlPointMode flip wp@(Waypoint anchor (e1init,e2init)) offset = Mode $ proc (cursorWorldPos, selecting) -> do
       let
         e1Absolute = cursorWorldPos ^+^ offset
       e1Absolute_ <- delay (e1init ^+^ anchor) -< e1Absolute
@@ -160,50 +164,84 @@ waypoint radius seg0 = runMode (notSelectedMode seg0)
       let segment | flip      = Waypoint anchor (e2,e1)
                   | otherwise = Waypoint anchor (e1,e2)
       event <- sampleOnRisingEdge -< (not selecting, notSelectedMode segment)
-      returnA -< trace "wheee" (event, segment)
+      returnA -< (event, (segment, render segment (Just (1 + boolToInt flip))))
 
-waypoints :: (Vec World, Bool, Bool) ~> [Waypoint]
+    -- TODO this is a very quick hack (:
+    render :: Waypoint -> Maybe Int -> Picture
+    render wp Nothing = let [anchor,c1,c2] = wpVecsAbsolute wp
+                        in pictures [ linePic [c1,c2]
+                                    , translatePic anchor (color red (circlePic controlNodeRadius))
+                                    , translatePic c1 (color green (circlePic controlNodeRadius))
+                                    , translatePic c2 (color green (circlePic controlNodeRadius))
+                                    ]
+    render wp (Just n) =
+      let [anchor,c1,c2] = wpVecsAbsolute wp
+      in pictures $ linePic [c1,c2] : zipWith ($)
+         [ \f -> translatePic anchor (color red (f controlNodeRadius))
+         , \f -> translatePic c1 (color green (f controlNodeRadius))
+         , \f -> translatePic c2 (color green (f controlNodeRadius))
+         ]
+         (replicate n circlePic ++ [circleSolidPic] ++ repeat circlePic)
+
+
+highlightedWaypoint :: (Vec World, Bool, Grid World WaypointID) ~> Maybe WaypointID
+highlightedWaypoint = runMode notDraggingMode
+  where
+    notDraggingMode = Mode $ proc (cursorPos, tryingToDrag, grid) -> do
+      let
+        nearestWaypointID = closestNearby grid cursorPos
+        dragging = tryingToDrag && isJust nearestWaypointID
+
+      returnA -< (sample dragging (draggingMode (fromJust nearestWaypointID)), nearestWaypointID)
+
+    draggingMode id = Mode $ proc (_, tryingToDrag, _) -> do
+      returnA -< (sample (not tryingToDrag) notDraggingMode, Just id)
+
+waypoints :: (Vec World, Bool, Bool) ~> ([Waypoint], Picture)
 waypoints =
   let
     gridCellSize = 100  
   in
     proc (cursorPos, dragging, addNew) -> do
   
-      nextID <- stateful' 0 (+) -< boolToInt addNew
+      nextID <- WaypointID ^<< stateful' 0 (+) -< boolToInt addNew
       let 
         newWaypoint = Waypoint cursorPos (Vec 0 (-50), Vec 0 50)
-        newWaypointEvent = sample addNew (nextID, (newWaypoint, waypoint controlNodeRadius newWaypoint))
+        newWaypointEvent = sample addNew (nextID, ((newWaypoint, blank), waypoint controlNodeRadius newWaypoint))
 
       stoppedDragging <- risingEdge -< not dragging
       let updateGrid = stoppedDragging || addNew
 
       rec
         grid_ <- delay (mkGrid gridCellSize []) -< grid
-        let nearestWaypointID = closestNearby grid_ cursorPos 
+        nearestWaypointID <- delay Nothing <<< highlightedWaypoint -< (cursorPos, dragging, grid_)
         waypointMap
           <- sparseUpdater Map.empty
-          -< ([], maybeToList newWaypointEvent, [0..nextID] `zip` repeat (cursorPos, dragging))  --maybeToList nearestWaypointID `zip` [(cursorPos, dragging)])
-        let newGrid = mkGrid gridCellSize [(id,vec) | (id,wp) <- Map.toList waypointMap, vec <- wpVecs wp]
+          -< ([], maybeToList newWaypointEvent, maybeToList nearestWaypointID `zip` [(cursorPos, dragging)])
+
+        let newGrid = mkGrid gridCellSize [(id,vec) | (id,(wp,_)) <- Map.toList waypointMap, vec <- wpVecsAbsolute wp]
 
 
         -- TODO: grid doesn't work properly yet
         -- does not get correctly updated after dragging a control point
         -- we need to ignore the grid while dragging
         grid <- setter (mkGrid gridCellSize []) -< sample updateGrid newGrid
+
+      let wpPics = map snd $ Map.elems waypointMap
   
-      returnA -< traceShow nearestWaypointID $ Map.elems waypointMap
+      returnA -< (map fst (Map.elems waypointMap), pictures (renderGrid grid : wpPics))
 
 bezierEdit :: Input ~> Output
 bezierEdit = proc input -> do
   GUI _ cursorWorldPos _ overlay <- gui -< input
   newWaypoint <- risingEdge -< keyDown EditorAdjust input
   let dragging = keyDown EditorCommit input
-  wps <- waypoints -< (cursorWorldPos, dragging, newWaypoint)
+  (wps, gridPic) <- waypoints -< (cursorWorldPos, dragging, newWaypoint)
   let
-    anchors = map anchor wps
-    controlPoints = concatMap ((\(x,y) -> [x,y]) . controlPointsAbsolute) wps
-    anchorPics = map (renderPoint red) anchors
-    controlPointPics = map (renderPoint green) controlPoints
+    -- anchors = map anchor wps
+    -- controlPoints = concatMap ((\(x,y) -> [x,y]) . controlPointsAbsolute) wps
+    -- anchorPics = map (renderControlNode red) anchors
+    -- controlPointPics = map (renderControlNode green) controlPoints
     cubicBeziers = zipWith
       (\(Waypoint anchor1 (_,c1)) (Waypoint anchor2 (c2,_))
        -> CubicBezier (anchor1,anchor2) (c1 ^+^ anchor1, c2 ^+^ anchor2))
@@ -212,7 +250,7 @@ bezierEdit = proc input -> do
     lineWaypointsPic = color (greyN 0.3) $ pictures $ [linePic [e1,e2] | seg <- wps, let (e1,e2) = controlPointsAbsolute seg]
     curvesPic = pictures $ map (renderBezier 50) cubicBeziers
   
-  returnA -< Output (overlay $ pictures (curvesPic : lineWaypointsPic : anchorPics ++ controlPointPics)) Nothing
+  returnA -< Output (overlay $ pictures [lineWaypointsPic, curvesPic, gridPic]) Nothing
 
 
 -- bezierEdit' :: Input ~> Output
@@ -284,15 +322,15 @@ mkTrackSegment (v1,v2) (w1,w2)
   | v1 <-> v2 > v1 <-> v2 = [v1, w1, v2, w2]
   | otherwise             = [v1, w1, w2, v2]
 
-renderBezier :: Int -> CubicBezier w -> Picture
-renderBezier nSamples bezier@(CubicBezier (e1,e2) (c1,c2)) =
+renderBezier :: Int -> CubicBezier World -> Picture
+renderBezier nSamples bezier =
   let
     curve         = cubicCurve bezier
     samplePoints  = map (/fromIntegral nSamples) [0..fromIntegral nSamples]
     samples       = map curve samplePoints
-    path          = linePic samples
-    endPoints     = map (renderPoint red) [e1, e2]
-    controlPoints = map (renderPoint blue) [c1, c2]
+    -- path          = linePic samples
+    -- endPoints     = map (renderControlNode red) [e1, e2]
+    -- controlPoints = map (renderControlNode green) [c1, c2]
     derivs        = map (cubicCurveDerivative bezier) samplePoints
     normDerivs    = map normalize derivs
     crossBars     = [ (v ^+^ offset , v ^-^ offset)
@@ -302,7 +340,10 @@ renderBezier nSamples bezier@(CubicBezier (e1,e2) (c1,c2)) =
     segments      = zipWith mkTrackSegment crossBars (tail crossBars)
     segmentPics   = zipWith color (cycle [blue, dim blue]) (map polygonPic segments)
     -- leftVertices = 
-    cbPics        = map (\(x,y) -> color blue $ linePic [x,y]) crossBars
+    -- cbPics        = map (\(x,y) -> color blue $ linePic [x,y]) crossBars
     -- arrows        = thinOut 4 [ color (dim blue) $ linePic [v, v ^+^ dv] | (dv,v) <- derivs `zip` samples ]
   in
-    pictures (color white path : endPoints ++ controlPoints ++ segmentPics)
+    pictures segmentPics
+
+renderControlNode :: Color -> Vec World -> Picture
+renderControlNode col pos = color col $ translatePic pos $ circlePic controlNodeRadius

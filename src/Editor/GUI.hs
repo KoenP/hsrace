@@ -47,8 +47,3 @@ viewPortSF = proc input -> do
   zoom <- stateful' 1 (\x y -> (x + y) `max` 0.2) -< 0.2 * dZoom
   returnA -< ViewPort position 0 zoom
 
-plusPicture :: Color -> Vec w -> Float -> Picture
-plusPicture col pos size = color col
-  $ translatePic pos
-  $ scalePic size
-  $ pictures [line [(-1,0),(1,0)] , line [(0,-1),(0,1)]]

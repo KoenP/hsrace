@@ -37,6 +37,12 @@ arcPic a1 a2 rad = let Degrees d1 = toPicAngle a1
                        Degrees d2 = toPicAngle a2
                    in arc d1 d2 (realToFrac rad)
 
+circlePic :: Double -> Picture
+circlePic radius = circle (realToFrac radius)
+
+circleSolidPic :: Double -> Picture
+circleSolidPic radius = circleSolid (realToFrac radius)
+
 applyViewPort :: ViewPort -> Picture -> Picture
 applyViewPort (ViewPort v rot zoom)
   = scalePic zoom . rotatePic (- rot) . translatePic (neg v)
@@ -103,3 +109,15 @@ x |> f = f x
 boolToInt :: Bool -> Int
 boolToInt True  = 1
 boolToInt False = 0
+
+plusPicture :: Color -> Vec w -> Float -> Picture
+plusPicture col pos size = color col
+  $ translatePic pos
+  $ scalePic size
+  $ pictures [line [(-1,0),(1,0)] , line [(0,-1),(0,1)]]
+
+fst3 :: (a,b,c) -> a
+fst3 (a,_,_) = a
+
+snd3 :: (a,b,c) -> b
+snd3 (_,b,_) = b

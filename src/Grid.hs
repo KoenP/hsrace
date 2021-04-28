@@ -4,14 +4,17 @@ module Grid where
 import Vec
 import Util
 
+import Graphics.Gloss hiding (scale)
+
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Bifunctor (bimap)
 import Data.List
 import Data.Function
+import Control.Category hiding (id, (.))
 --------------------------------------------------------------------------------
 
-data Grid w a = Grid !CellSize (Map (Int,Int) [(Vec w, a)])
+data Grid w a = Grid { _gridSize :: !CellSize, _gridMap :: Map (Int,Int) [(Vec w, a)] }
 type CellSize = Double
 
 mkGrid :: CellSize -> [(id, Vec w)] -> Grid w id
@@ -40,3 +43,7 @@ closestNearby (Grid cellSize grid) pos =
                ]
   in
     snd <$> safeMinimumBy (compare `on` fst) elements
+
+
+renderGrid :: Grid w a -> Picture
+renderGrid = _gridMap >>> Map.elems >>> concat >>> map (\(pos,_) -> plusPicture white pos 7) >>> pictures
