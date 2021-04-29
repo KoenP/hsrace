@@ -65,63 +65,6 @@ cellSize = 50
 gridIndex :: Vec w -> (Int,Int)
 gridIndex (Vec x y) = (floor (x / cellSize), floor (y / cellSize))
 
--- -- type SegmentMap = Map SegmentID (Segment, )
--- type SpaceGrid = Map (Int,Int) [SegmentComponentID]
--- 
--- spaceGrid :: SegmentMap -> SpaceGrid
--- spaceGrid = Map.toList >>> concatMap convert >>> multiMapFromList
---   where
---     convert :: (SegmentID, Segment) -> [((Int,Int), SegmentComponentID)]
---     convert (id, Segment anchor (p1,p2))
---       = [ (ix, (id,sid))
---         | (sid, v) <- [(Anchor,anchor), (Endpoint1,p1), (Endpoint2,p2)]
---         , ix <- index v
---         ]
---       -- map index [anchor, p1, p2] `zip` map (id,) [Anchor, Endpoint1, Endpoint2]
--- 
---     index :: Vec w -> [(Int,Int)]
---     index v =
---       let
---         delta           = Vec cellSize cellSize
---         (xl, yl)        = gridIndex $ v ^-^ delta
---         (xh, yh)        = gridIndex $ v ^+^ delta
---       in
---         (,) <$> [xl..xh] <*> [yl..yh]
--- 
--- bezierControlNodes :: (Vec World, Bool) ~> [Segment]
--- bezierControlNodes = runMode (noControlNodeSelected Map.empty)
---   where
---     noControlNodeSelected :: SegmentMap -> Mode (Vec World, Bool) [Segment]
---     noControlNodeSelected segmentMap =
---       let
---         segments = Map.elems segmentMap
---       in
---         Mode $ proc (cursorWorldPos, dragging) -> do
---           select <- risingEdge -< dragging
--- 
---           let
---             grid                              = spaceGrid segmentMap
--- 
---             -- IDs for control nodes that are close enough that we need to check whether they should
---             -- be highlighted.
---             controlNodeIDsToCheck             = concat . maybeToList $ gridIndex cursorWorldPos `Map.lookup` grid
---           
---             -- 
---             selectedNodeID = guard select >> listToMaybe
---               [ id
---               | (id, pos) <- controlNodeIDsToCheck `zip` map (foo segmentMap) controlNodeIDsToCheck
---               , pos <-> cursorWorldPos < controlNodeRadius
---               ]
---           
---             event = fmap (controlNodeSelected segmentMap) selectedNodeID
---           returnA -< (event, segments)
--- 
---     controlNodeSelected :: Map SegmentID Segment -> SegmentComponentID -> Mode (Vec World, Bool) [Segment]
---     controlNodeSelected segmentMap (segmentID, segmentComponent)
---       = Mode $ proc (cursorWorldPos, dragging) -> do
--- 
---           returnA -< undefined
-
 waypoint :: Double -> Waypoint -> ((Vec World, Bool) ~> (Waypoint, Picture))
 waypoint radius seg0 = runMode (notSelectedMode seg0)
   where
@@ -155,22 +98,23 @@ waypoint radius seg0 = runMode (notSelectedMode seg0)
       returnA -< (event, (seg, render seg (Just 0)))
 
     dragControlPointMode :: Bool -> Waypoint -> Vec World -> Mode (Vec World, Bool) (Waypoint, Picture)
-    dragControlPointMode flip wp@(Waypoint anchor (e1init,e2init)) offset = Mode $ proc (cursorWorldPos, selecting) -> do
-      let
-        e1Absolute = cursorWorldPos ^+^ offset
-      e1Absolute_ <- delay (e1init ^+^ anchor) -< e1Absolute
-      let
-        e1  = e1Absolute  ^-^ anchor
-        e1_ = e1Absolute_ ^-^ anchor
-        dTheta = e1 `signedInternalAngle` e1_
-      theta <- cumsum -< (-dTheta)
-      let
-        e2  =  theta `rotVec` e2init
-
-      let segment | flip      = Waypoint anchor (e2,e1)
-                  | otherwise = Waypoint anchor (e1,e2)
-      event <- sampleOnRisingEdge -< (not selecting, notSelectedMode segment)
-      returnA -< (event, (segment, render segment (Just (1 + boolToInt flip))))
+    dragControlPointMode flip (Waypoint anchor (e1init,e2init)) offset
+      = Mode $ proc (cursorWorldPos, selecting) -> do
+          let
+            e1Absolute = cursorWorldPos ^+^ offset
+          e1Absolute_ <- delay (e1init ^+^ anchor) -< e1Absolute
+          let
+            e1  = e1Absolute  ^-^ anchor
+            e1_ = e1Absolute_ ^-^ anchor
+            dTheta = e1 `signedInternalAngle` e1_
+          theta <- cumsum -< (-dTheta)
+          let
+            e2  =  theta `rotVec` e2init
+    
+          let segment | flip      = Waypoint anchor (e2,e1)
+                      | otherwise = Waypoint anchor (e1,e2)
+          event <- sampleOnRisingEdge -< (not selecting, notSelectedMode segment)
+          returnA -< (event, (segment, render segment (Just (1 + boolToInt flip))))
 
     -- TODO this is a very quick hack (:
     render :: Waypoint -> Maybe Int -> Picture
@@ -265,20 +209,34 @@ waypoints =
     proc (cursorPos, dragging, addNew) -> do
   
       nextID <- WaypointID ^<< stateful' 0 (+) -< boolToInt addNew
-      let 
-        newWaypoint = Waypoint cursorPos (Vec 0 (-50), Vec 0 50)
-        newWaypointEvent = sample addNew (nextID, ((newWaypoint, blank), waypoint controlNodeRadius newWaypoint))
-
       stoppedDragging <- risingEdge -< not dragging
       let updateGrid = stoppedDragging || addNew
 
       rec
+        lastWaypoint_ <- delay Nothing -< lastWaypoint
+
+        let 
+          newWaypoint :: Waypoint
+          newWaypoint = case lastWaypoint_ of
+            Nothing -> Waypoint cursorPos (Vec 0 (-50), Vec 0 50)
+            Just (_, (Waypoint anchor (_, offset2), _)) ->
+              let
+                dir = normalize $ cursorPos ^-^ (anchor ^+^ offset2)
+                len = norm offset2
+                offset1' = (- len) *^ dir
+                offset2' = len *^ dir
+              in
+                Waypoint cursorPos (offset1', offset2')
+                      
+          newWaypointEvent = sample addNew (nextID, ((newWaypoint, blank), waypoint controlNodeRadius newWaypoint))
+
         grid_ <- delay (mkGrid gridCellSize []) -< grid
         nearestWaypointID <- delay Nothing <<< highlightedWaypoint -< (cursorPos, dragging, grid_)
         waypointMap
           <- sparseUpdater Map.empty
           -< ([], maybeToList newWaypointEvent, maybeToList nearestWaypointID `zip` [(cursorPos, dragging)])
-
+        
+        let lastWaypoint = Map.lookupMax waypointMap
         let newGrid = mkGrid gridCellSize [(id,vec) | (id,(wp,_)) <- Map.toList waypointMap, vec <- wpVecsAbsolute wp]
 
 
