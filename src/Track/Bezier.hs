@@ -31,6 +31,8 @@ type Anchors w = (Vec w, Vec w)
 type ControlPoints w = (Vec w, Vec w)
 data CubicBezier w = CubicBezier (Anchors w) (ControlPoints w)
 
+type TrackSegment = [Vec World]
+
 type PathConfig = [(Vec World, Vec World)]
 
 data Waypoint = Waypoint { anchor :: Vec World, controlPointsOffsets :: ControlPoints World }
@@ -50,6 +52,10 @@ controlPointsAbsolute (Waypoint anchor (e1,e2)) = (anchor ^+^ e1, anchor ^+^ e2)
 flipWaypointControlPoints :: Waypoint -> Waypoint
 flipWaypointControlPoints (Waypoint anchor (e1,e2)) = Waypoint anchor (e2,e1)
 
+waypointsToBezier :: Waypoint -> Waypoint -> CubicBezier World
+waypointsToBezier (Waypoint anchor1 (_, offset1)) (Waypoint anchor2 (offset2, _))
+  = CubicBezier (anchor1, anchor2) (anchor1 ^+^ offset1, anchor2 ^+^ offset2)
+    
 
 controlNodeRadius :: Double
 controlNodeRadius = 15
@@ -197,7 +203,61 @@ highlightedWaypoint = runMode notDraggingMode
     draggingMode id = Mode $ proc (_, tryingToDrag, _) -> do
       returnA -< (sample (not tryingToDrag) notDraggingMode, Just id)
 
-waypoints :: (Vec World, Bool, Bool) ~> ([Waypoint], Picture)
+
+-- | For each waypoint ID, we store the waypoint and the polygons and picture
+--   for the piece of the road leading back to the previous waypoint.
+type Cache = Map WaypointID (Waypoint, [TrackSegment], Picture)
+
+cacheSF :: (Maybe (WaypointID, Waypoint), Maybe (WaypointID, Waypoint)) ~> Cache
+cacheSF = stateful' Map.empty step 
+  where
+    step :: (Maybe (WaypointID, Waypoint), Maybe (WaypointID, Waypoint)) -> Cache -> Cache
+
+    -- Case: no updates
+    step (Nothing, Nothing) old = old
+
+    -- Case: insert new waypoint in an empty cache.
+    step (Just (id, wp), Nothing) old
+      | Map.null old
+      = Map.insert id (wp, [], blank) old
+
+    -- Case: insert new waypoint at the end of a nonempty cache.
+    step (Just (id, wp), Nothing) old
+      = writeWaypoint id wp old
+
+
+    -- Case: edit existing waypoint.
+    step (Nothing, Just (id, wp)) old
+      = let
+          cache' = writeWaypoint id wp old
+        in
+          case Map.lookupGT id cache' of Just (id', (wp',_,_)) -> writeWaypoint id' wp' cache'
+                                         Nothing -> cache'
+
+    step _ _ = error "cache: unhandled case"
+
+    -- TODO "update waypoint" functie
+
+    -- Insert or overwrite waypoint with the given ID, updating the
+    -- cached road and picture *for that waypoint only*.
+    writeWaypoint :: WaypointID -> Waypoint -> Cache -> Cache
+    writeWaypoint id wp old
+      | Just (_, (wp', _, _)) <- Map.lookupLT id old
+      = let roadPart = mkRoadPart wp' wp
+        in Map.insert id (wp, roadPart, renderRoadPart roadPart) old
+      | otherwise
+      = Map.insert id (wp, [], blank) old
+
+
+    -- TODO magic number, should depend on length of segment
+    mkRoadPart :: Waypoint -> Waypoint -> [TrackSegment]
+    mkRoadPart wp1 wp2 = bezierToRoadPart 50 $ waypointsToBezier wp1 wp2
+
+readCache :: Cache -> ([Waypoint], [TrackSegment], Picture)
+readCache cache = let (wps, segs, pics) = unzip3 (Map.elems cache)
+                  in (wps, concat segs, pictures pics)
+      
+waypoints :: (Vec World, Bool, Bool) ~> (Cache, Picture)
 waypoints =
   let
     gridCellSize = 100  
@@ -228,29 +288,35 @@ waypoints =
         grid <- setter (mkGrid gridCellSize []) -< sample updateGrid newGrid
 
       let wpPics = map snd $ Map.elems waypointMap
+
+      cache <- cacheSF -< ((\(x,((y,_),_)) -> (x,y)) <$> newWaypointEvent
+                        , do {guard dragging; id <- nearestWaypointID; (wp,_) <- id `Map.lookup` waypointMap
+                             ; return (id,wp)}
+                        )
   
-      returnA -< (map fst (Map.elems waypointMap), pictures (renderGrid grid : wpPics))
+      returnA -< (cache, pictures wpPics) -- (map fst (Map.elems waypointMap), pictures (renderGrid grid : wpPics))
 
 bezierEdit :: Input ~> Output
 bezierEdit = proc input -> do
   GUI _ cursorWorldPos _ overlay <- gui -< input
   newWaypoint <- risingEdge -< keyDown EditorAdjust input
   let dragging = keyDown EditorCommit input
-  (wps, gridPic) <- waypoints -< (cursorWorldPos, dragging, newWaypoint)
+  ((_,_,roadPic),waypointsPic) <- first (arr readCache) ^<< waypoints -< (cursorWorldPos, dragging, newWaypoint)
+  
   let
     -- anchors = map anchor wps
     -- controlPoints = concatMap ((\(x,y) -> [x,y]) . controlPointsAbsolute) wps
     -- anchorPics = map (renderControlNode red) anchors
     -- controlPointPics = map (renderControlNode green) controlPoints
-    cubicBeziers = zipWith
-      (\(Waypoint anchor1 (_,c1)) (Waypoint anchor2 (c2,_))
-       -> CubicBezier (anchor1,anchor2) (c1 ^+^ anchor1, c2 ^+^ anchor2))
-      wps (tail wps)
+    -- cubicBeziers = zipWith
+    --   (\(Waypoint anchor1 (_,c1)) (Waypoint anchor2 (c2,_))
+    --    -> CubicBezier (anchor1,anchor2) (c1 ^+^ anchor1, c2 ^+^ anchor2))
+    --   wps (tail wps)
 
-    lineWaypointsPic = color (greyN 0.3) $ pictures $ [linePic [e1,e2] | seg <- wps, let (e1,e2) = controlPointsAbsolute seg]
-    curvesPic = pictures $ map (renderBezier 50) cubicBeziers
+    -- lineWaypointsPic = color (greyN 0.3) $ pictures $ [linePic [e1,e2] | seg <- wps, let (e1,e2) = controlPointsAbsolute seg]
+    -- curvesPic = pictures $ map (renderBezier 50) cubicBeziers
   
-  returnA -< Output (overlay $ pictures [lineWaypointsPic, curvesPic, gridPic]) Nothing
+  returnA -< Output (overlay $ pictures [roadPic, waypointsPic]) Nothing
 
 
 -- bezierEdit' :: Input ~> Output
@@ -302,7 +368,7 @@ cubicCurve (CubicBezier (e1,e2) (c1,c2)) =
     curve1 = quadraticCurve e1 c1 c2
     curve2 = quadraticCurve c1 c2 e2
   in
-    \t -> lerp (curve1 t) (curve2 t) t
+    \t -> trace "test" $ lerp (curve1 t) (curve2 t) t
 
 cubicCurveDerivative :: CubicBezier w -> (Double -> Vec w)
 cubicCurveDerivative (CubicBezier (e1,e2) (c1,c2)) t
@@ -313,6 +379,23 @@ cubicCurveDerivative (CubicBezier (e1,e2) (c1,c2)) t
 
 roadWidth = 100
 
+
+-- | Construct part of a road that follows a bezier curve.
+bezierToRoadPart :: Int -> CubicBezier World -> [TrackSegment]
+bezierToRoadPart nSamples bezier =
+  let
+    curve         = cubicCurve bezier
+    samplePoints  = map (/fromIntegral nSamples) [0..fromIntegral nSamples]
+    samples       = map curve samplePoints
+    derivs        = map (cubicCurveDerivative bezier) samplePoints
+    normDerivs    = map normalize derivs
+    crossBars     = [ (v ^+^ offset , v ^-^ offset)
+                    | (dv,v) <- normDerivs `zip` samples
+                    , let offset = roadWidth *^ perp dv
+                    ]
+  in
+    zipWith mkTrackSegment crossBars (tail crossBars)
+
 -- | Given two crossbars, which may or may not intersect, make a track segment.
 --   If they don't intersect, we construct the polygon v1-w1-w2-v2
 --   Otherwise, we construct the polygon v1-w1-v2-w2
@@ -321,6 +404,9 @@ mkTrackSegment (v1,v2) (w1,w2)
   -- Intersecting case
   | v1 <-> v2 > v1 <-> v2 = [v1, w1, v2, w2]
   | otherwise             = [v1, w1, w2, v2]
+
+renderRoadPart :: [TrackSegment] -> Picture
+renderRoadPart = pictures . zipWith color (cycle [blue, dim blue]) . map polygonPic
 
 renderBezier :: Int -> CubicBezier World -> Picture
 renderBezier nSamples bezier =
