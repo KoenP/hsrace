@@ -60,7 +60,7 @@ instance ArrowLoop (~>) where
     in (c, loop sf')
 
 updateSF :: Time -> i -> (o, i ~> o) -> IO (o, i ~> o)
-updateSF dt input (_, SF sf) = trace "---" $ return (out, sf')
+updateSF dt input (_, SF sf) = return (out, sf')
   where (out, sf') = sf (dt,input)
 
 -- State

@@ -257,4 +257,3 @@ snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
 
 fromPolar :: Double -> Angle -> Vec w
 fromPolar magnitude theta = magnitude *^ unitvecFromAngle theta
-

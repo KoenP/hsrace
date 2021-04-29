@@ -251,7 +251,7 @@ cacheSF = stateful' Map.empty step
 
     -- TODO magic number, should depend on length of segment
     mkRoadPart :: Waypoint -> Waypoint -> [TrackSegment]
-    mkRoadPart wp1 wp2 = bezierToRoadPart 50 $ waypointsToBezier wp1 wp2
+    mkRoadPart wp1 wp2 = bezierToRoadPart (waypointsToBezier wp1 wp2)
 
 readCache :: Cache -> ([Waypoint], [TrackSegment], Picture)
 readCache cache = let (wps, segs, pics) = unzip3 (Map.elems cache)
@@ -303,57 +303,7 @@ bezierEdit = proc input -> do
   let dragging = keyDown EditorCommit input
   ((_,_,roadPic),waypointsPic) <- first (arr readCache) ^<< waypoints -< (cursorWorldPos, dragging, newWaypoint)
   
-  let
-    -- anchors = map anchor wps
-    -- controlPoints = concatMap ((\(x,y) -> [x,y]) . controlPointsAbsolute) wps
-    -- anchorPics = map (renderControlNode red) anchors
-    -- controlPointPics = map (renderControlNode green) controlPoints
-    -- cubicBeziers = zipWith
-    --   (\(Waypoint anchor1 (_,c1)) (Waypoint anchor2 (c2,_))
-    --    -> CubicBezier (anchor1,anchor2) (c1 ^+^ anchor1, c2 ^+^ anchor2))
-    --   wps (tail wps)
-
-    -- lineWaypointsPic = color (greyN 0.3) $ pictures $ [linePic [e1,e2] | seg <- wps, let (e1,e2) = controlPointsAbsolute seg]
-    -- curvesPic = pictures $ map (renderBezier 50) cubicBeziers
-  
   returnA -< Output (overlay $ pictures [roadPic, waypointsPic]) Nothing
-
-
--- bezierEdit' :: Input ~> Output
--- bezierEdit' = proc input -> do
---   GUI _ cursorWorldPos _ overlay <- gui -< input
--- 
---   -- Create new waypoint.
---   let
---     newWaypoint   = keyDown EditorAdjust input
---     dragging      = keyDown EditorCommit input
---     waypointInput = (cursorWorldPos, dragging)
---     segment       = Waypoint cursorWorldPos (Vec 0 (-50), Vec 0 50)
--- 
---   -- Delete waypoint closest to cursor (within a given range).
---   -- let
---   --   TODO
---   rec
---     nextId <- fromIntegral ^<< count (==True) -< newWaypoint
---     newSFEvent <- sampleOnRisingEdge -< (newWaypoint, (nextId, waypoint 20 segment))
---     segmentMap <- sfMap -< ([], maybeToList newSFEvent, waypointInput)
--- 
--- 
---   let
---     segments = Map.elems segmentMap
---     anchors = map anchor segments
---     controlPoints = concatMap ((\(x,y) -> [x,y]) . controlPointsAbsolute) segments
---     anchorPics = map (renderPoint red) anchors
---     controlPointPics = map (renderPoint green) controlPoints
---     cubicBeziers = zipWith
---       (\(Waypoint anchor1 (_,c1)) (Waypoint anchor2 (c2,_))
---        -> CubicBezier (anchor1,anchor2) (c1 ^+^ anchor1, c2 ^+^ anchor2))
---       segments (tail segments)
--- 
---     lineWaypointsPic = color (greyN 0.3) $ pictures $ [linePic [e1,e2] | seg <- segments, let (e1,e2) = controlPointsAbsolute seg]
---     curvesPic = pictures $ map (renderBezier 50) cubicBeziers
---   
---   returnA -< Output (overlay $ pictures (curvesPic : lineWaypointsPic : anchorPics ++ controlPointPics)) Nothing
 
 quadraticCurve :: Vec w -> Vec w -> Vec w -> (Double -> Vec w)
 quadraticCurve v1 v2 v3 =
@@ -368,7 +318,7 @@ cubicCurve (CubicBezier (e1,e2) (c1,c2)) =
     curve1 = quadraticCurve e1 c1 c2
     curve2 = quadraticCurve c1 c2 e2
   in
-    \t -> trace "test" $ lerp (curve1 t) (curve2 t) t
+    \t -> lerp (curve1 t) (curve2 t) t
 
 cubicCurveDerivative :: CubicBezier w -> (Double -> Vec w)
 cubicCurveDerivative (CubicBezier (e1,e2) (c1,c2)) t
@@ -379,12 +329,16 @@ cubicCurveDerivative (CubicBezier (e1,e2) (c1,c2)) t
 
 roadWidth = 100
 
+sampleDensity = 0.01
 
 -- | Construct part of a road that follows a bezier curve.
-bezierToRoadPart :: Int -> CubicBezier World -> [TrackSegment]
-bezierToRoadPart nSamples bezier =
+--   sampleDensity = samples / length
+bezierToRoadPart :: CubicBezier World -> [TrackSegment]
+bezierToRoadPart bezier =
   let
     curve         = cubicCurve bezier
+    (_,length)    = iterativelyApproximateCurveLength 0.01 curve
+    nSamples      = ceiling (sampleDensity * length)
     samplePoints  = map (/fromIntegral nSamples) [0..fromIntegral nSamples]
     samples       = map curve samplePoints
     derivs        = map (cubicCurveDerivative bezier) samplePoints
@@ -433,3 +387,27 @@ renderBezier nSamples bezier =
 
 renderControlNode :: Color -> Vec World -> Picture
 renderControlNode col pos = color col $ translatePic pos $ circlePic controlNodeRadius
+
+sampleCurve :: Int -> (Double -> Vec w) -> [Vec w]
+sampleCurve nSamples curve =
+  let
+    nSamples' = fromIntegral nSamples
+    samplePoints = map (/nSamples') [0..nSamples']
+  in
+    map curve samplePoints
+
+iterativelyApproximateCurveLength :: Double -> (Double -> Vec w) -> (Int, Double)
+iterativelyApproximateCurveLength epsilon curve =
+  let
+    approximations = [(nSamples, approximateCurveLength nSamples curve) | nSamples <- iterate (*2) 16]
+    pairs = approximations `zip` tail approximations
+    test ((_,apx1), (_,apx2)) = apx2 - apx1 <= epsilon * apx2
+  in
+    fst $ head $ dropWhile (not . test) pairs
+
+-- | Approximate the length of a curve (from 0 to 1).
+approximateCurveLength :: Int -> (Double -> Vec w) -> Double
+approximateCurveLength nSamples curve =
+  let samplePoints = sampleCurve nSamples curve
+  in foldl' (^+^) zeroVec $ zipWith (<->) samplePoints (tail samplePoints)
+  
