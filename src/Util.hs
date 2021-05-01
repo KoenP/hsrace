@@ -8,6 +8,7 @@ import Graphics.Gloss
 
 import Control.Monad
 import Debug.Trace
+import Data.Bifunctor
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -52,6 +53,9 @@ nag :: [a] -> [a]
 nag []      = []
 nag [x]    = repeat x
 nag (x:xs) = x : nag xs
+
+composeMany :: [a -> a] -> a -> a
+composeMany = foldr (.) id
 
 safeHead :: [a] -> Maybe a
 safeHead (x:_) = Just x
@@ -121,3 +125,6 @@ fst3 (a,_,_) = a
 
 snd3 :: (a,b,c) -> b
 snd3 (_,b,_) = b
+
+bimap' :: Bifunctor f => (a -> b) -> f a a -> f b b
+bimap' fn = bimap fn fn

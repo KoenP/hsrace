@@ -46,14 +46,14 @@ isoscelesTrianglePath base height = [ (-base/2, -height/3)
 playerPic :: Picture
 playerPic = (color red . polygon) (isoscelesTrianglePath 14 23)
 
-renderGameState :: Vec Window -> Vec World -> Angle -> Track -> Hook -> Picture
-renderGameState cursorPos pos rot track hook =
+renderGameState :: Vec World -> Angle -> Picture -> Hook -> Picture
+renderGameState pos rot trackPic hook =
   let
     transform = {- rotatePic (-rot) . -} translatePic (neg pos)
-    world = transform $ renderTrack track
+    world = transform trackPic
     hookPic = color white $ transform $ renderHook pos hook
   in
-    pictures [world, hookPic, rotatePic rot playerPic, renderPoint white cursorPos]
+    pictures [world, hookPic, rotatePic rot playerPic]
 
 renderHook :: Vec World -> Hook -> Picture
 renderHook startPos (HookTravelling endPos)
@@ -110,17 +110,17 @@ velocitySF = stateful (zeroVec, Nothing) step
 
 -- | Main game loop.
 game :: Game
-game switchTo track@(Track road pillars) =
-  let
-    grid = mkCollisionGrid 50 (map _tsShape road)
+game switchTo onRoad trackPic =
+  -- let
+    -- grid = mkCollisionGrid 50 (map _tsShape road)
 
-    pillarCheck :: HookAttachedCheck
-    pillarCheck pos = foldr (<|>) Nothing $ map (`pillarPushOut` pos) pillars
+    -- pillarCheck :: HookAttachedCheck
+    -- pillarCheck pos = foldr (<|>) Nothing $ map (`pillarPushOut` pos) pillars
     -- foldMap :: (Pillar -> Maybe (Vec World)) -> [a] -> Maybe (Vec World)
     -- pillars :: [Pillar]
     -- (`pillarPushOut` pos) :: Pillar -> Maybe Vec World
-  in
-    Mode $ proc input -> do
+  -- in
+  Mode $ proc input -> do
     -- Switch to editor mode.
     changeMode_ <- changeMode switchTo -< input
 
@@ -141,10 +141,10 @@ game switchTo track@(Track road pillars) =
 
       dPosition <- delay zeroVec -< position
       dVelocity <- delay zeroVec -< velocity
-      hook      <- runMode (noHookMode pillarCheck) -< (input, dPosition, fromPolar k_hookSpeed rotation)
+      hook      <- runMode (noHookMode (error "hooks not properly supported now")) -< (input, dPosition, fromPolar k_hookSpeed rotation)
       let dSpeed = norm dVelocity
 
-      let dragFactor = if onRoad grid dPosition then k_drag else k_dragOffroad
+      let dragFactor = if onRoad dPosition then k_drag else k_dragOffroad
       let drag = (- dragFactor * dSpeed ** 2) *^ normalize dVelocity
       (velocity, tether) <- velocitySF -< (dPosition, thrust ^+^ drag, hook)
       position <- cumsum -< velocity
@@ -153,13 +153,13 @@ game switchTo track@(Track road pillars) =
     thrustAnim <- thrusterAnimation -< (accelerating, rotation)
     
     returnA -<
-      (changeMode_, Output (pictures [renderGameState cursorPos position rotation track hook, thrustAnim]) Nothing)
+      (changeMode_, Output (pictures [renderGameState position rotation trackPic hook, thrustAnim]) Nothing)
 
--- traceAnimation :: (Vec World, Angle) ~> Picture
--- traceAnimation = proc (pos, rot) -> do
---   let pic = translatePic pos $ rotatePic rot playerPic
---   returnA -< _
-
+-- -- traceAnimation :: (Vec World, Angle) ~> Picture
+-- -- traceAnimation = proc (pos, rot) -> do
+-- --   let pic = translatePic pos $ rotatePic rot playerPic
+-- --   returnA -< _
+-- 
 thrusterAnimation :: (Bool, Angle) ~> Picture
 thrusterAnimation =
   let
@@ -170,9 +170,9 @@ thrusterAnimation =
       pic <- slideShow 0.05 frames -< ()
       returnA -< if thrusterOn then rotatePic (pi + rotation) pic else blank
 
--- hook ::  
--- hook startPos velocity = constant velocity >>> cumsumFrom startPos >>^ attach
---   where
---     attach :: Vec World -> 
-  
--- isoscelesTrianglePath 14 23
+-- -- hook ::  
+-- -- hook startPos velocity = constant velocity >>> cumsumFrom startPos >>^ attach
+-- --   where
+-- --     attach :: Vec World -> 
+--   
+-- -- isoscelesTrianglePath 14 23

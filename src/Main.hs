@@ -7,6 +7,7 @@ import Editor.TrackState
 import Input
 import Game
 import Editor
+import Editor.Cache
 import SF
 import Vec
 import Types
@@ -23,29 +24,30 @@ import Data.Maybe
 main :: IO ()
 main = do
   -- Read track.
-  (track, trackState) <- readTrack
-  let sf = runMode (game (editor trackState game) track)
+  -- (track, trackState) <- readTrack
+  -- let sf = 
+  -- let sf = runMode (game (editor trackState game) track)
   -- runSF sf
-  runSF bezierEdit
+  runSF $ runMode $ editor emptyCache game
 
-readTrack :: IO (Track, TrackState)
-readTrack = do
-  let 
-    def = TrackSaveData [(zeroVec,100),(Vec 0 600,100)] []
-
-    h :: SomeException -> IO TrackSaveData
-    h _ = return def
-
-  saveData <- (fromMaybe def . readMaybe <$> readFile "track") `catch` h
-
-  return (fromSaveData saveData, trackStateFromSaveData saveData)
+-- readTrack :: IO (Track, TrackState)
+-- readTrack = do
+--   let 
+--     def = TrackSaveData [(zeroVec,100),(Vec 0 600,100)] []
+-- 
+--     h :: SomeException -> IO TrackSaveData
+--     h _ = return def
+-- 
+--   saveData <- (fromMaybe def . readMaybe <$> readFile "track") `catch` h
+-- 
+--   return (fromSaveData saveData, trackStateFromSaveData saveData)
   
 runSF :: (Input ~> Output) -> IO ()
 runSF sf
   = playIO
     (InWindow "hsrace test" (1716,1397) (800,600))
     black
-    60
+    120
     ([], emptyInput, (Output blank Nothing, sf))
     (\(_,_,(out@(Output pic _),_)) -> processOutput out >> return pic)
     (\e w -> return (registerEvent e w))

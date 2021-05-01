@@ -24,6 +24,7 @@ data GameKey
   | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
   | EditorClear | EditorDelete
   | ZoomIn | ZoomOut
+  | LMB | RMB
   deriving (Eq, Ord, Show, Read)
 
 data Input = Input
@@ -62,8 +63,8 @@ constructInput (Input down _ cursorPos) events
     step i _ = i
 
     lookupKey :: Key -> [GameKey]
-    lookupKey (MouseButton LeftButton)  = [Accelerating, EditorCommit]
-    lookupKey (MouseButton RightButton) = [EditorAdjust, LaunchHook]
+    lookupKey (MouseButton LeftButton)  = [Accelerating, EditorCommit, LMB]
+    lookupKey (MouseButton RightButton) = [EditorAdjust, LaunchHook, RMB]
     lookupKey (MouseButton WheelUp)     = [ZoomIn]
     lookupKey (MouseButton WheelDown)   = [ZoomOut]
     lookupKey (SpecialKey KeySpace)     = [EditorNextSubMode]

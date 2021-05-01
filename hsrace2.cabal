@@ -28,6 +28,8 @@ executable hsrace2
                        Editor.TrackState,
                        Editor.Render,
                        Editor.GUI,
+                       Editor.Waypoint,
+                       Editor.Cache,
                        Input,
                        Game,
                        Util,

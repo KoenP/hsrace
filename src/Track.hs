@@ -1,6 +1,5 @@
 module Track
   ( module Track
-  , Waypoint
   , Road
   , RoadSegment
   ) where
@@ -29,12 +28,12 @@ data Track = Track { _lo_road    :: Road
   deriving (Read, Show)
 makeLenses ''Track
 
-data TrackSaveData
-  = TrackSaveData { _lsd_waypoints :: [Waypoint]
-                  , _lsd_pillars   :: [Pillar]
-                  }
-  deriving (Read, Show)
-makeLenses ''TrackSaveData
-
-fromSaveData :: TrackSaveData -> Track
-fromSaveData (TrackSaveData waypoints pillars) = Track (fromWaypoints waypoints) pillars
+-- data TrackSaveData
+--   = TrackSaveData { _lsd_waypoints :: [Waypoint]
+--                   , _lsd_pillars   :: [Pillar]
+--                   }
+--   deriving (Read, Show)
+-- makeLenses ''TrackSaveData
+-- 
+-- fromSaveData :: TrackSaveData -> Track
+-- fromSaveData (TrackSaveData waypoints pillars) = Track (fromWaypoints waypoints) pillars
