@@ -142,7 +142,7 @@ waypoints cache0 =
       Nothing               -> 0
       Just (WaypointID k,_) -> k + 1
 
-    wps0 = Map.fromList [ (k, ((wp, renderWaypoint wp Nothing), waypoint wp))
+    wps0 = Map.fromList [ (k, ((wp, renderWaypoint wp False unhighlighted), waypoint wp))
                         | (k, (wp,_,_)) <- Map.toList cache0
                         ]
   in
@@ -158,15 +158,15 @@ waypoints cache0 =
         let 
           newWaypoint :: Waypoint
           newWaypoint = case lastWaypoint_ of
-            Nothing -> Waypoint cursorPos (Vec 0 (-120), Vec 0 120)
-            Just (_, (Waypoint anchor (_, offset2), _)) ->
+            Nothing -> Waypoint cursorPos (Vec 0 (-120), Vec 0 120) defaultWaypointWidth
+            Just (_, (Waypoint anchor (_, offset2) width, _)) ->
               let
                 dir = normalize $ cursorPos ^-^ (anchor ^+^ offset2)
                 len = norm offset2
                 offset1' = (- len) *^ dir
                 offset2' = len *^ dir
               in
-                Waypoint cursorPos (offset1', offset2')
+                Waypoint cursorPos (offset1', offset2') width
                       
           newWaypointEvent = sample addNew (nextID, ((newWaypoint, blank), waypoint newWaypoint))
 

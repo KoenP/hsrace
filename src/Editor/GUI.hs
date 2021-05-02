@@ -40,10 +40,10 @@ gui = proc input -> do
 
 viewPortSF :: Input ~> ViewPort
 viewPortSF = proc input -> do
-  position <- cumsum -< 10 *^ direction input
   let dZoom | keyTriggered ZoomIn  input = 1
             | keyTriggered ZoomOut input = (-1)
             | otherwise             = 0
   zoom <- stateful' 1 (\x y -> (x + y) `max` 0.2) -< 0.2 * dZoom
+  position <- cumsum -< (10 / zoom) *^ direction input
   returnA -< ViewPort position 0 zoom
 

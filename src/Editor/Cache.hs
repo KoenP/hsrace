@@ -45,7 +45,8 @@ writeWaypoint id wp old
 
 
 mkRoadSegment :: Waypoint -> Waypoint -> RoadSegment
-mkRoadSegment wp1 wp2 = bezierToRoadSegment (waypointsToBezier wp1 wp2)
+mkRoadSegment wp1 wp2
+  = bezierToRoadSegment (width wp1) (width wp2) (waypointsToBezier wp1 wp2)
 
 readCache :: Cache -> ([Waypoint], Road, Picture)
 readCache cache = let (wps, segs, pics) = unzip3 (Map.elems cache)

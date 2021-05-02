@@ -29,9 +29,11 @@ roadWidth = 250
 sampleDensity = 0.01
 
 -- | Construct part of a road that follows a bezier curve.
+--   The width of the road is linearly interpolated between the two
+--   values provided as parameters.
 --   sampleDensity = samples / length
-bezierToRoadSegment :: CubicBezier World -> RoadSegment
-bezierToRoadSegment bezier =
+bezierToRoadSegment :: Double -> Double -> CubicBezier World -> RoadSegment
+bezierToRoadSegment width1 width2 bezier =
   let
     curve         = cubicCurve bezier
     (_,length)    = iterativelyApproximateCurveLength 0.01 curve
@@ -40,9 +42,10 @@ bezierToRoadSegment bezier =
     samples       = map curve samplePoints
     derivs        = map (cubicCurveDerivative bezier) samplePoints
     normDerivs    = map normalize derivs
+    widths        = map (lerp width1 width2) samplePoints
     crossBars     = [ (v ^+^ offset , v ^-^ offset)
-                    | (dv,v) <- normDerivs `zip` samples
-                    , let offset = roadWidth *^ perp dv
+                    | (dv,v,width) <- zip3 normDerivs samples widths
+                    , let offset = width *^ perp dv
                     ]
   in
     zipWith mkRoadQuad crossBars (tail crossBars)
