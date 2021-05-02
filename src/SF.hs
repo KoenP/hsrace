@@ -110,6 +110,10 @@ clampedIntegralFrom bounds v0 = stateful v0 step
 recentHistory :: Int -> (a ~> [a])
 recentHistory nFrames = stateful [] $ \_ a as -> take nFrames (a:as)
 
+recentHistoryByTime :: Time -> Time -> (a ~> [a])
+recentHistoryByTime frameInterval historyDuration
+  = recentHistory (ceiling $ historyDuration / frameInterval)
+
 setter :: a -> Maybe a ~> a
 setter a0 = stateful' a0 update
   where update Nothing  a = a

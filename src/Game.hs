@@ -28,10 +28,13 @@ type HookAttachedCheck = Vec World -> Maybe (Vec World)
 type HookMode = HookAttachedCheck -> Mode (Input, Vec World, Vec World) Hook
 
 k_acceleration, k_drag, k_hookSpeed :: Double
-k_acceleration = 0.05
--- k_acceleration = 0.2
-k_drag         = 0
--- k_drag         = 0.004
+-- k_acceleration = 0.05
+-- k_drag         = 0
+-- k_acceleration = 0.3
+-- k_drag         = 0.0015
+k_acceleration = 0.2
+k_drag         = 0.0005
+
 k_dragOffroad  = 0.1
 k_hookSpeed    = 80
 
@@ -45,16 +48,16 @@ isoscelesTrianglePath base height = [ (-base/2, -height/3)
                                     ]
 
 playerPic :: Picture
-playerPic = (color red . polygon) (isoscelesTrianglePath 14 23)
+playerPic = polygon (isoscelesTrianglePath 14 23)
 
-renderGameState :: Vec World -> Angle -> Picture -> Hook -> Picture
-renderGameState pos rot trackPic hook =
+renderGameState :: Vec World -> Picture -> Picture -> Hook -> Picture
+renderGameState pos playerTrace trackPic hook =
   let
     transform = {- rotatePic (-rot) . -} translatePic (neg pos)
     world = transform trackPic
     hookPic = color white $ transform $ renderHook pos hook
   in
-    pictures [world, hookPic, rotatePic rot playerPic]
+    pictures [world, hookPic, transform playerTrace]
 
 renderHook :: Vec World -> Hook -> Picture
 renderHook startPos (HookTravelling endPos)
@@ -152,9 +155,12 @@ game switchTo onRoad trackPic =
 
 
     thrustAnim <- thrusterAnimation -< (accelerating, rotation)
+    let playerPicture = playerPic 
+    playerTrace <- fadingTrace 12 red
+      -< translatePic position $ rotatePic rotation playerPic
     
     returnA -<
-      (changeMode_, Output (pictures [renderGameState position rotation trackPic hook, thrustAnim]) Nothing)
+      (changeMode_, Output (pictures [renderGameState position playerTrace trackPic hook, thrustAnim]) Nothing)
 
 -- -- traceAnimation :: (Vec World, Angle) ~> Picture
 -- -- traceAnimation = proc (pos, rot) -> do
@@ -170,6 +176,15 @@ thrusterAnimation =
     proc (thrusterOn, rotation) -> do
       pic <- slideShow 0.05 frames -< ()
       returnA -< if thrusterOn then rotatePic (pi + rotation) pic else blank
+
+-- TODO make independent of frame rate
+fadingTrace :: Int -> Color -> Picture ~> Picture
+fadingTrace nFrames col =
+  let (r,g,b,_) = rgbaOfColor col
+      alphas = map (\n -> 1 / fromIntegral n) [1..nFrames]
+        -- reverse [i / fromIntegral nFrames | i <- map fromIntegral [0..nFrames-1]]
+      colors = [makeColor r g b a | a <- alphas]
+  in pictures . zipWith color colors <$> recentHistory nFrames
 
 -- -- hook ::  
 -- -- hook startPos velocity = constant velocity >>> cumsumFrom startPos >>^ attach
