@@ -25,7 +25,7 @@ type Road        = [RoadQuad]
 type RoadSegment = Road
 
 roadWidth, sampleDensity :: Double
-roadWidth = 100
+roadWidth = 250
 sampleDensity = 0.01
 
 -- | Construct part of a road that follows a bezier curve.

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-stack build && stack exec hsrace2
+stack build && stack exec hsrace2 -- $1

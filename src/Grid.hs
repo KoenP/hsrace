@@ -15,6 +15,7 @@ import Control.Category hiding (id, (.))
 --------------------------------------------------------------------------------
 
 data Grid w a = Grid { _gridSize :: !CellSize, _gridMap :: Map (Int,Int) [(Vec w, a)] }
+  deriving Show
 type CellSize = Double
 
 mkGrid :: CellSize -> [(id, Vec w)] -> Grid w id

@@ -26,7 +26,7 @@ gridCellSize = 50
 --   waypoint is the first controller of the road shape after the
 --   waypoint.
 data Waypoint = Waypoint { anchor :: Vec World, controlPointsOffsets :: ControlPoints World }
-  deriving Show
+  deriving (Show, Read)
 
 newtype WaypointID = WaypointID Int
   deriving (Show, Eq, Ord)
@@ -87,7 +87,7 @@ waypoint seg0 = runMode (notSelectedMode seg0)
         -- of one of the nodes, switch to the appropriate dragging state.
         event <- sampleOnRisingEdge -< (selectingRisingEdge && inRange, nextMode)
 
-        returnA -< (event, (seg, render seg (guard inRange >> Just highlighted)))
+        returnA -< (event, (seg, renderWaypoint seg (guard inRange >> Just highlighted)))
 
     -- Dragging the anchor is straightforward: we just move the anchor
     -- and don't change the offsets.
@@ -100,7 +100,7 @@ waypoint seg0 = runMode (notSelectedMode seg0)
 
       -- Return to `notSelectedMode` if the user stops dragging.
       event <- sampleOnRisingEdge -< (not selecting, notSelectedMode seg)
-      returnA -< (event, (seg, render seg (Just 0)))
+      returnA -< (event, (seg, renderWaypoint seg (Just 0)))
 
     -- Dragging control points is a bit more involved.
     -- We calculate the rotation caused by the movement relative to the anchor.
@@ -126,25 +126,25 @@ waypoint seg0 = runMode (notSelectedMode seg0)
           let segment | flip      = Waypoint anchor (e2,e1)
                       | otherwise = Waypoint anchor (e1,e2)
           event <- sampleOnRisingEdge -< (not selecting, notSelectedMode segment)
-          returnA -< (event, (segment, render segment (Just (1 + boolToInt flip))))
+          returnA -< (event, (segment, renderWaypoint segment (Just (1 + boolToInt flip))))
 
-    -- Renders the waypoint. If the cursor is close enough to a node,
-    -- that node is higlighted by rendering it as a solid rather than as
-    -- an empty circle.
-    -- This is a very quick hack, but I'm too lazy to write something nicer (:
-    render :: Waypoint -> Maybe Int -> Picture
-    render wp Nothing =
-      let [anchor,c1,c2] = wpVecsAbsolute wp
-      in pictures [ color (greyN 0.6) (linePic [c1,c2])
-                  , translatePic anchor (color red (circlePic nodeRadius))
-                  , translatePic c1 (color green (circlePic nodeRadius))
-                  , translatePic c2 (color green (circlePic nodeRadius))
-                  ]
-    render wp (Just n) =
-      let [anchor,c1,c2] = wpVecsAbsolute wp
-      in pictures $ color white (linePic [c1,c2]) : zipWith ($)
-         [ \f -> translatePic anchor (color red (f nodeRadius))
-         , \f -> translatePic c1 (color green (f nodeRadius))
-         , \f -> translatePic c2 (color green (f nodeRadius))
-         ]
-         (replicate n circlePic ++ [circleSolidPic] ++ repeat circlePic)
+-- | Renders the waypoint. If the cursor is close enough to a node,
+--   that node is higlighted by rendering it as a solid rather than as
+--   an empty circle.
+--   This is a very quick hack, but I'm too lazy to write something nicer (:
+renderWaypoint :: Waypoint -> Maybe Int -> Picture
+renderWaypoint wp Nothing =
+  let [anchor,c1,c2] = wpVecsAbsolute wp
+  in pictures [ color (greyN 0.6) (linePic [c1,c2])
+              , translatePic anchor (color red (circlePic nodeRadius))
+              , translatePic c1 (color green (circlePic nodeRadius))
+              , translatePic c2 (color green (circlePic nodeRadius))
+              ]
+renderWaypoint wp (Just n) =
+  let [anchor,c1,c2] = wpVecsAbsolute wp
+  in pictures $ color white (linePic [c1,c2]) : zipWith ($)
+     [ \f -> translatePic anchor (color red (f nodeRadius))
+     , \f -> translatePic c1 (color green (f nodeRadius))
+     , \f -> translatePic c2 (color green (f nodeRadius))
+     ]
+     (replicate n circlePic ++ [circleSolidPic] ++ repeat circlePic)

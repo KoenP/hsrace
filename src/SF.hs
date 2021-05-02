@@ -196,7 +196,9 @@ sfMap = fmap fst <$> stateful Map.empty step
 
 -- | Like sfMap, but only updates those signal functions that have an input
 --   directly addressed to them.
-sparseUpdater :: forall id i o. Ord id => Map id (o,i~>o) -> ([id], [(id, (o,i~>o))], [(id,i)]) ~> Map id o
+sparseUpdater :: forall id i o. Ord id
+              => Map id (o,i~>o)
+              -> ([id], [(id, (o,i~>o))], [(id,i)]) ~> Map id o
 sparseUpdater map0 = fmap fst <$> stateful map0 step
   where
     applyInput :: Time -> i -> (o, i ~> o) -> (o, i ~> o)

@@ -26,8 +26,10 @@ import Data.Maybe
 
 -- type TrackEditCommand = (Maybe Waypoint, Maybe Pillar)
 
-editor :: Cache -> Game -> ProgMode
-editor cache0 = editor' (editorSF cache0)
+type EditorInitialization = (Cache, FilePath)
+
+editor :: EditorInitialization -> Game -> ProgMode
+editor = editor' . editorSF
 
 editor' :: (Input ~> (Output, Cache))
         -> Game
@@ -42,8 +44,8 @@ editor' edSF switchToF = Mode $ proc input -> do
        )
   returnA -< (changeMode_, out)
 
-editorSF :: Cache -> (Input ~> (Output, Cache))
-editorSF cache0 = proc input -> do
+editorSF :: EditorInitialization -> (Input ~> (Output, Cache))
+editorSF (cache0, trackFilePath) = proc input -> do
   gui_ <- gui -< input
   nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
   -- clearTrackState <- risingEdge -< keyDown EditorClear input
@@ -53,19 +55,20 @@ editorSF cache0 = proc input -> do
        , keyDown LMB input
        , keyTriggered RMB input
        )
-  let (_,_,roadPic) = readCache cache
+  let (waypoints_, _, roadPic) = readCache cache
 
   -- Save current track, if requested.
-  -- writeFile
-  --   <- sampleOnRisingEdge
-  --   -< ( keyDown EditorSave input
-  --      , FileOutput "track" (show (extractSaveData trackState))
-  --      )
+  let saveKeyTriggered = keyTriggered EditorSave input
+  let writeFile = sample saveKeyTriggered $ FileOutput trackFilePath (show waypoints_)
+    -- <- sampleOnRisingEdge
+    -- -< ( traceResult $ saveKeyDown
+    --    , 
+    --    )
 
   -- Finalize outputs.
   let pic' = _gui_overlay gui_ (pictures [roadPic, waypointsPic])
 
-  let output = Output pic' Nothing -- writeFile
+  let output = Output pic' writeFile
 
   returnA -< (output, cache)
 
@@ -135,10 +138,17 @@ waypoints :: Cache -> (Vec World, Bool, Bool) ~> (Cache, Picture)
 waypoints cache0 =
   let
     gridCellSize = 100  
+    nextID0 = case Map.lookupMax cache0 of
+      Nothing               -> 0
+      Just (WaypointID k,_) -> k + 1
+
+    wps0 = Map.fromList [ (k, ((wp, renderWaypoint wp Nothing), waypoint wp))
+                        | (k, (wp,_,_)) <- Map.toList cache0
+                        ]
   in
     proc (cursorPos, dragging, addNew) -> do
   
-      nextID <- WaypointID ^<< stateful' 0 (+) -< boolToInt addNew
+      nextID <- WaypointID ^<< stateful' nextID0 (+) -< boolToInt addNew
       stoppedDragging <- risingEdge -< not dragging
       let updateGrid = stoppedDragging || addNew
 
@@ -161,18 +171,14 @@ waypoints cache0 =
           newWaypointEvent = sample addNew (nextID, ((newWaypoint, blank), waypoint newWaypoint))
 
         grid_ <- delay (mkGrid gridCellSize []) -< grid
-        nearestWaypointID <- delay Nothing <<< highlightedWaypoint -< (cursorPos, dragging, grid_)
-        waypointMap
-          <- sparseUpdater Map.empty
+        nearestWaypointID <- delay Nothing <<< highlightedWaypoint
+          -< (cursorPos, dragging, grid_)
+        waypointMap <- sparseUpdater wps0
           -< ([], maybeToList newWaypointEvent, maybeToList nearestWaypointID `zip` [(cursorPos, dragging)])
         
         let lastWaypoint = Map.lookupMax waypointMap
         let newGrid = mkGrid gridCellSize [(id,vec) | (id,(wp,_)) <- Map.toList waypointMap, vec <- wpVecsAbsolute wp]
 
-
-        -- TODO: grid doesn't work properly yet
-        -- does not get correctly updated after dragging a control point
-        -- we need to ignore the grid while dragging
         grid <- setter (mkGrid gridCellSize []) -< sample updateGrid newGrid
 
       let wpPics = map snd $ Map.elems waypointMap
@@ -185,5 +191,4 @@ waypoints cache0 =
                 ; return (id,wp)
                 }
            )
-  
       returnA -< (cache, pictures wpPics) -- (map fst (Map.elems waypointMap), pictures (renderGrid grid : wpPics))

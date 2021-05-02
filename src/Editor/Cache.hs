@@ -53,5 +53,5 @@ readCache cache = let (wps, segs, pics) = unzip3 (Map.elems cache)
       
 fromWaypoints :: [Waypoint] -> Cache
 fromWaypoints waypoints = composeMany
-  [writeWaypoint id wp | (id,wp) <- map WaypointID [0..] `zip` waypoints]
+  (reverse [writeWaypoint id wp | (id,wp) <- map WaypointID [0..] `zip` waypoints])
   emptyCache

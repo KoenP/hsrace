@@ -28,9 +28,10 @@ type HookAttachedCheck = Vec World -> Maybe (Vec World)
 type HookMode = HookAttachedCheck -> Mode (Input, Vec World, Vec World) Hook
 
 k_acceleration, k_drag, k_hookSpeed :: Double
-k_acceleration = 0.2
-k_drag         = 0.004
--- k_drag         = 0.001
+k_acceleration = 0.05
+-- k_acceleration = 0.2
+k_drag         = 0
+-- k_drag         = 0.004
 k_dragOffroad  = 0.1
 k_hookSpeed    = 80
 

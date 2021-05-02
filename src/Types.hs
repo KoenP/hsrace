@@ -10,6 +10,7 @@ import Graphics.Gloss (Picture)
 --------------------------------------------------------------------------------
 
 data FileOutput = FileOutput { _fo_fileName :: String, _fo_content :: String }
+  deriving Show
 
 data Output = Output Picture (Maybe FileOutput)
 

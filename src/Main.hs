@@ -3,6 +3,7 @@ module Main where
 --------------------------------------------------------------------------------
 import Track
 import Track.Bezier
+import Editor.Waypoint
 import Editor.TrackState
 import Input
 import Game
@@ -11,6 +12,7 @@ import Editor.Cache
 import SF
 import Vec
 import Types
+import Util
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
@@ -19,16 +21,26 @@ import Prelude hiding ((.), id)
 import Control.Exception
 import Text.Read
 import Data.Maybe
+import System.Environment
+import Debug.Trace
 --------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
-  -- Read track.
-  -- (track, trackState) <- readTrack
-  -- let sf = 
-  -- let sf = runMode (game (editor trackState game) track)
-  -- runSF sf
-  runSF $ runMode $ editor emptyCache game
+  editorInit <- readTrackFile
+  runSF $ runMode $ editor editorInit game
+
+readTrackFile :: IO (Cache, FilePath)
+readTrackFile = do 
+  args <- getArgs
+  case args of
+    [filename] -> do
+      let filepath = "tracks/" ++ filename
+      waypoints :: [Waypoint] <- read <$> readFile filepath
+      traceShow waypoints $ return (traceResult (fromWaypoints waypoints), filepath)
+    _ -> return (emptyCache, "/dev/null")
+      
+      
 
 -- readTrack :: IO (Track, TrackState)
 -- readTrack = do
@@ -49,9 +61,13 @@ runSF sf
     black
     120
     ([], emptyInput, (Output blank Nothing, sf))
-    (\(_,_,(out@(Output pic _),_)) -> processOutput out >> return pic)
+    (\(_,_,(Output pic _,_)) -> return pic)
     (\e w -> return (registerEvent e w))
-    (glossUpdate updateSF)
+    (glossUpdate $ \dt input old -> do
+        (output, new) <- updateSF dt input old
+        processOutput output
+        return (output, new))
+
 
 processOutput :: Output -> IO ()
 processOutput (Output _ (Just (FileOutput filename content)))
