@@ -29,6 +29,7 @@ executable hsrace2
                        Editor.Render,
                        Editor.GUI,
                        Editor.Waypoint,
+                       Editor.Pillar,
                        Editor.Cache,
                        Input,
                        Game,

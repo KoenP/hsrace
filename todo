@@ -1,6 +1,15 @@
 [ ] play with settings in-game (mostly UI work)
-[ ] editor: variable road width
+[X] let zoom level depend on speed
+[ ] controller support
+[ ] split screen multiplayer
+[O] add pillars and hookshots back
+
+[X] editor: variable road width
 [ ] editor: insert new waypoints between existing waypoints
 [ ] editor: form a proper circuit
-[ ] editor: scroll faster if zoomed out
-[ ] game: let zoom level depend on speed
+[X] editor: scroll faster if zoomed out
+[ ] editor: rethink interface
+
+[ ] refactor: rendering in game mode
+[ ] refactor: code duplication in Editor and Pillar
+[ ] refactor: clean up Input module

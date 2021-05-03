@@ -3,7 +3,7 @@ module Editor where
 --------------------------------------------------------------------------------
 import Input
 import Editor.Render
-import Editor.Cache
+import Editor.Pillar
 import Editor.GUI
 import Editor.Waypoint
 import Editor.Cache
@@ -29,33 +29,38 @@ import Data.Maybe
 type EditorInitialization = (Cache, FilePath)
 
 editor :: EditorInitialization -> Game -> ProgMode
-editor = editor' . editorSF
+editor init game = editor' (editorSF init) game
 
-editor' :: (Input ~> (Output, Cache))
+editor' :: (Input ~> (Output, Cache, [Pillar]))
         -> Game
         -> ProgMode
 editor' edSF switchToF = Mode $ proc input -> do
-  ((out, cache), edSF') <- inspect edSF -< input
-  let (_, road, pic) = readCache cache
+  ((out, cache, pillars), edSF') <- inspect edSF -< input
+  let (_, road, roadPic) = readCache cache
   let roadCheck = checkOnRoad road
+  let pic = pictures $ roadPic : map (renderPillar False) pillars
   changeMode_ <- sampleOnRisingEdge
     -< ( keyDown ChangeMode input
-       , switchToF (editor' edSF' switchToF) roadCheck pic
+       , switchToF (editor' edSF' switchToF) (GameTrack roadCheck pillars pic)
        )
   returnA -< (changeMode_, out)
 
-editorSF :: EditorInitialization -> (Input ~> (Output, Cache))
+editorSF :: EditorInitialization -> (Input ~> (Output, Cache, [Pillar]))
 editorSF (cache0, trackFilePath) = proc input -> do
   gui_ <- gui -< input
   nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
   -- clearTrackState <- risingEdge -< keyDown EditorClear input
+  let cursor = _gui_cursorWorldPos gui_
+  let dragging = keyDown LMB input
 
   (cache, waypointsPic) <- waypoints cache0
-    -< ( _gui_cursorWorldPos gui_
-       , keyDown LMB input
+    -< ( cursor
+       , dragging
        , keyTriggered RMB input
        )
   let (waypoints_, _, roadPic) = readCache cache
+
+  (pillars, pillarsPic) <- pillars -< (cursor, dragging, keyTriggered Space input)
 
   -- Save current track, if requested.
   let saveKeyTriggered = keyTriggered EditorSave input
@@ -66,11 +71,11 @@ editorSF (cache0, trackFilePath) = proc input -> do
     --    )
 
   -- Finalize outputs.
-  let pic' = _gui_overlay gui_ (pictures [roadPic, waypointsPic])
+  let pic' = _gui_overlay gui_ (pictures [roadPic, waypointsPic, pillarsPic])
 
   let output = Output pic' writeFile
 
-  returnA -< (output, cache)
+  returnA -< (output, cache, pillars)
 
 -- placingPillarMode :: (Input, GUI, TrackState) ~> (TrackEditCommand, Picture)
 -- placingPillarMode = proc (input, GUI _ placePillarPos _ _, trackState) -> do
@@ -170,11 +175,14 @@ waypoints cache0 =
                       
           newWaypointEvent = sample addNew (nextID, ((newWaypoint, blank), waypoint newWaypoint))
 
-        grid_ <- delay (mkGrid gridCellSize []) -< grid
+        dGrid <- delay (mkGrid gridCellSize []) -< grid
         nearestWaypointID <- delay Nothing <<< highlightedWaypoint
-          -< (cursorPos, dragging, grid_)
+          -< (cursorPos, dragging, dGrid)
         waypointMap <- sparseUpdater wps0
-          -< ([], maybeToList newWaypointEvent, maybeToList nearestWaypointID `zip` [(cursorPos, dragging)])
+          -< ( []
+             , maybeToList newWaypointEvent
+             , maybeToList nearestWaypointID `zip` [(cursorPos, dragging)]
+             )
         
         let lastWaypoint = Map.lookupMax waypointMap
         let newGrid = mkGrid gridCellSize [(id,vec) | (id,(wp,_)) <- Map.toList waypointMap, vec <- wpVecsAbsolute wp]

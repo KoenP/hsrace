@@ -87,9 +87,9 @@ waypoint = runMode . notSelectedMode
       Mode $ proc (cursorWorldPos, selecting) -> do
         let
           -- (e1,e2)   = controlPointsAbsolute wp
-          vecs@[anchor, e1, e2, wc1, wc2] = wpVecsAbsolute wp
-          offsets   = map (^-^ cursorWorldPos) vecs
-          inRange   = any ((<= nodeRadius) . norm) offsets
+          vecs    = wpVecsAbsolute wp
+          offsets = map (^-^ cursorWorldPos) vecs
+          inRange = any ((<= nodeRadius) . norm) offsets
 
           -- Here we check which nodes the cursor is in range of.
           -- Based on that, we determine what the next mode should be
@@ -105,9 +105,9 @@ waypoint = runMode . notSelectedMode
                   , dragWhisker 1 wp
                   , dragWhisker 2 wp
                   ]
-                  [ highlighting (ControlPoint 1)
+                  [ highlighting Anchor
+                  , highlighting (ControlPoint 1)
                   , highlighting (ControlPoint 2)
-                  , highlighting Anchor
                   , highlighting (Whisker 1)
                   , highlighting (Whisker 2)
                   ]
@@ -130,13 +130,12 @@ waypoint = runMode . notSelectedMode
     -- The `offset` variable keeps track of how far from the anchor the
     -- mouse cursor was when the user started dragging.
     dragAnchorMode :: Waypoint -> Vec World -> Mode (Vec World, Bool) (Waypoint, Picture)
-    dragAnchorMode wp0 offset = Mode $ proc (cursorWorldPos, selecting) -> do
+    dragAnchorMode wp0 offset = release $ proc cursorWorldPos -> do
       let anchor = cursorWorldPos ^+^ offset
       let wp    = wp0 { anchor = anchor }
 
       -- Return to `notSelectedMode` if the user stops dragging.
-      event <- sampleOnRisingEdge -< (not selecting, notSelectedMode wp)
-      returnA -< (event, (wp, renderWaypoint wp True (highlighting Anchor)))
+      returnA -< (wp, renderWaypoint wp True (highlighting Anchor))
 
     -- Dragging control points is a bit more involved.
     -- We calculate the rotation caused by the movement relative to the anchor.
@@ -148,7 +147,7 @@ waypoint = runMode . notSelectedMode
     dragControlPointMode :: Bool -> Waypoint -> Vec World
                          -> Mode (Vec World, Bool) (Waypoint, Picture)
     dragControlPointMode flip (Waypoint anchor (e1init,e2init) width) offset
-      = Mode $ proc (cursorWorldPos, selecting) -> do
+      = release $ proc cursorWorldPos -> do
           let
             e1Absolute = cursorWorldPos ^+^ offset
           d_e1Absolute <- delay (e1init ^+^ anchor) -< e1Absolute
@@ -162,11 +161,10 @@ waypoint = runMode . notSelectedMode
     
           let wp | flip      = Waypoint anchor (e2,e1) width
                  | otherwise = Waypoint anchor (e1,e2) width
-          event <- sampleOnRisingEdge -< (not selecting, notSelectedMode wp)
 
           let pic | flip      = renderWaypoint wp True (highlighting (ControlPoint 2))
                   | otherwise = renderWaypoint wp True (highlighting (ControlPoint 1))
-          returnA -< (event, (wp, pic))
+          returnA -< (wp, pic)
 
     release :: (Vec World ~> (Waypoint, Picture))
             -> Mode (Vec World, Bool) (Waypoint, Picture)

@@ -8,32 +8,27 @@ module Track
 import Vec
 import Track.Road
 
+import Graphics.Gloss (Picture)
+
 import Control.Lens
 import Debug.Trace
 --------------------------------------------------------------------------------
 
-type Pillar = (Vec World, Double)
+type Pillar = Vec World
+
+pillarRadius :: Double
+pillarRadius = 60
 
 pillarPushOut :: Pillar -> Vec World -> Maybe (Vec World)
-pillarPushOut (center, radius) vec
-  | delta <- vec ^-^ center, dist <- norm delta, dist <= radius
-  = Just $ center ^+^ (radius / dist) *^ delta
+pillarPushOut center vec
+  | delta <- vec ^-^ center, dist <- norm delta, dist <= pillarRadius
+  = Just $ center ^+^ (pillarRadius / dist) *^ delta
   | otherwise
   = Nothing
 
--- TODO rename and move to own module
-data Track = Track { _lo_road    :: Road
-                   , _lo_pillars :: [Pillar]
-                   }
-  deriving (Read, Show)
-makeLenses ''Track
-
--- data TrackSaveData
---   = TrackSaveData { _lsd_waypoints :: [Waypoint]
---                   , _lsd_pillars   :: [Pillar]
---                   }
---   deriving (Read, Show)
--- makeLenses ''TrackSaveData
--- 
--- fromSaveData :: TrackSaveData -> Track
--- fromSaveData (TrackSaveData waypoints pillars) = Track (fromWaypoints waypoints) pillars
+-- | Everything the game module needs to know about the track.
+data GameTrack = GameTrack
+  { _gt_onRoad :: Vec World -> Bool
+  , _gt_pillars :: [Pillar]
+  , _gt_pic :: Picture
+  }

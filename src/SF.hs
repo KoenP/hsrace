@@ -110,6 +110,11 @@ clampedIntegralFrom bounds v0 = stateful v0 step
 recentHistory :: Int -> (a ~> [a])
 recentHistory nFrames = stateful [] $ \_ a as -> take nFrames (a:as)
 
+averageRecentHistory :: (VectorSpace a v, Fractional a) => Int -> (a ~> a)
+averageRecentHistory nFrames = avg <$> recentHistory nFrames
+  where avg [] = zeroVec
+        avg l  = sum l / fromIntegral (length l)
+
 recentHistoryByTime :: Time -> Time -> (a ~> [a])
 recentHistoryByTime frameInterval historyDuration
   = recentHistory (ceiling $ historyDuration / frameInterval)

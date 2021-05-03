@@ -24,7 +24,7 @@ data GameKey
   | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
   | EditorClear | EditorDelete
   | ZoomIn | ZoomOut
-  | LMB | RMB
+  | LMB | RMB | Space
   deriving (Eq, Ord, Show, Read)
 
 data Input = Input
@@ -67,7 +67,7 @@ constructInput (Input down _ cursorPos) events
     lookupKey (MouseButton RightButton) = [EditorAdjust, LaunchHook, RMB]
     lookupKey (MouseButton WheelUp)     = [ZoomIn]
     lookupKey (MouseButton WheelDown)   = [ZoomOut]
-    lookupKey (SpecialKey KeySpace)     = [EditorNextSubMode]
+    lookupKey (SpecialKey KeySpace)     = [EditorNextSubMode, Space]
     lookupKey (SpecialKey KeyDelete)    = [EditorDelete]
     lookupKey (Char 'w')                = [Dir DirUp]
     lookupKey (Char 'a')                = [Dir DirLeft]

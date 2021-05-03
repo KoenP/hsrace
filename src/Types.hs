@@ -4,7 +4,7 @@ module Types where
 import Input (Input)
 import Vec
 import SF
-import Track (Track)
+import Track (GameTrack)
 
 import Graphics.Gloss (Picture)
 --------------------------------------------------------------------------------
@@ -18,5 +18,5 @@ type ProgMode = Mode Input Output
 
 type ProgSF = Input ~> Output
 
-type Game = ProgMode -> (Vec World -> Bool) -> Picture -> ProgMode
+type Game = ProgMode -> GameTrack -> ProgMode
 -- type Editor = 

@@ -3,12 +3,10 @@ module Game where
 --------------------------------------------------------------------------------
 import Vec
 import Angle
-import Track
 import Input
-import Track.Render
+import Track
 import Track.CollisionGrid
 import Track.Polygon
-import Track.Road
 import SF
 import Types
 import Util
@@ -18,9 +16,6 @@ import Graphics.Gloss
 import Prelude hiding ((.), id)
 import Data.Maybe
 import Control.Applicative
-import Control.Lens
-import qualified Data.Set as Set
-import Data.Set (Set)
 --------------------------------------------------------------------------------
 -- Hooks.
 data Hook = NoHook | HookTravelling (Vec World) | HookAttached (Vec World)
@@ -38,9 +33,6 @@ k_drag         = 0.0005
 k_dragOffroad  = 0.1
 k_hookSpeed    = 80
 
-onRoad :: CollisionGrid Polygon -> Vec World -> Bool
-onRoad grid v = True -- any (v `pointInPolygon`) (grid `collisionGridLookup` v)
-
 isoscelesTrianglePath :: Float -> Float -> Path
 isoscelesTrianglePath base height = [ (-base/2, -height/3)
                                     , ( base/2, -height/3)
@@ -50,10 +42,11 @@ isoscelesTrianglePath base height = [ (-base/2, -height/3)
 playerPic :: Picture
 playerPic = polygon (isoscelesTrianglePath 14 23)
 
-renderGameState :: Vec World -> Picture -> Picture -> Hook -> Picture
-renderGameState pos playerTrace trackPic hook =
+renderGameState :: Double -> Vec World -> Picture -> Picture -> Hook -> Picture
+renderGameState avgSpeed pos playerTrace trackPic hook =
   let
-    transform = {- rotatePic (-rot) . -} translatePic (neg pos)
+    zoom = clamp (0.2,1) $ lerp 1 0.2 (avgSpeed / 27)
+    transform = applyViewPort $ ViewPort pos 0 zoom
     world = transform trackPic
     hookPic = color white $ transform $ renderHook pos hook
   in
@@ -114,31 +107,18 @@ velocitySF = stateful (zeroVec, Nothing) step
 
 -- | Main game loop.
 game :: Game
-game switchTo onRoad trackPic =
-  -- let
-    -- grid = mkCollisionGrid 50 (map _tsShape road)
-
-    -- pillarCheck :: HookAttachedCheck
-    -- pillarCheck pos = foldr (<|>) Nothing $ map (`pillarPushOut` pos) pillars
-    -- foldMap :: (Pillar -> Maybe (Vec World)) -> [a] -> Maybe (Vec World)
-    -- pillars :: [Pillar]
-    -- (`pillarPushOut` pos) :: Pillar -> Maybe Vec World
-  -- in
+game switchTo (GameTrack onRoad pillars trackPic) =
   Mode $ proc input -> do
     -- Switch to editor mode.
     changeMode_ <- changeMode switchTo -< input
 
     -- Orient the player.
-    -- let
-    --   mouseMovement  = _input_mouseMovement input
-    --   cursorMovement = 0.1 *^ mouseMovement
     let cursorPos = _input_cursorPos input
   
     -- Position and heading.
     let accelerating = keyDown Accelerating input
     rec
       let
-        -- cursorWorldPos = windowCoordsToWorldCoords dViewPort cursorPos
         rotation = vecAngle cursorPos
         thrust | accelerating = rotVec rotation (Vec 0 k_acceleration)
                | otherwise    = zeroVec
@@ -154,28 +134,35 @@ game switchTo onRoad trackPic =
       position <- cumsum -< velocity
 
 
-    thrustAnim <- thrusterAnimation -< (accelerating, rotation)
+    thrustAnim <- thrusterAnimation -< (accelerating, rotation, position)
     let playerPicture = playerPic 
-    playerTrace <- fadingTrace 12 red
+    playerTrace <- fadingTrace 1 red
       -< translatePic position $ rotatePic rotation playerPic
+
+    avgSpeed <- averageRecentHistory 120 -< norm velocity
     
     returnA -<
-      (changeMode_, Output (pictures [renderGameState position playerTrace trackPic hook, thrustAnim]) Nothing)
+      ( changeMode_
+      , Output (pictures [renderGameState avgSpeed position (pictures [playerTrace, thrustAnim]) trackPic hook])
+                         -- , thrustAnim])
+        Nothing )
 
 -- -- traceAnimation :: (Vec World, Angle) ~> Picture
 -- -- traceAnimation = proc (pos, rot) -> do
 -- --   let pic = translatePic pos $ rotatePic rot playerPic
 -- --   returnA -< _
 -- 
-thrusterAnimation :: (Bool, Angle) ~> Picture
+thrusterAnimation :: (Bool, Angle, Vec World) ~> Picture
 thrusterAnimation =
   let
     frames = map (color yellow . translatePic (Vec 0 12) . polygon)
              [isoscelesTrianglePath 5 5, isoscelesTrianglePath 7 15]
   in
-    proc (thrusterOn, rotation) -> do
+    proc (thrusterOn, rotation, pos) -> do
       pic <- slideShow 0.05 frames -< ()
-      returnA -< if thrusterOn then rotatePic (pi + rotation) pic else blank
+      returnA -< if thrusterOn
+                then translatePic pos (rotatePic (pi + rotation) pic)
+                else blank
 
 -- TODO make independent of frame rate
 fadingTrace :: Int -> Color -> Picture ~> Picture
