@@ -61,6 +61,10 @@ safeHead :: [a] -> Maybe a
 safeHead (x:_) = Just x
 safeHead _     = Nothing
 
+safeTail :: [a] -> [a]
+safeTail []     = []
+safeTail (_:xs) = xs
+
 safeMinimumBy :: (a -> a -> Ordering) -> [a] -> Maybe a
 safeMinimumBy _    [] = Nothing
 safeMinimumBy comp l  = Just (minimumBy comp l)

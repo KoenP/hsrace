@@ -1,20 +1,21 @@
 module Track
   ( module Track
-  , Road
-  , RoadSegment
+  , module Track.Road
+  , module Track.Render
+  , module Track.Types
   ) where
 
 --------------------------------------------------------------------------------
 import Vec
 import Track.Road
+import Track.Render
+import Track.Types
 
 import Graphics.Gloss (Picture)
 
 import Control.Lens
 import Debug.Trace
 --------------------------------------------------------------------------------
-
-type Pillar = Vec World
 
 pillarRadius :: Double
 pillarRadius = 60
@@ -26,9 +27,4 @@ pillarPushOut center vec
   | otherwise
   = Nothing
 
--- | Everything the game module needs to know about the track.
-data GameTrack = GameTrack
-  { _gt_onRoad :: Vec World -> Bool
-  , _gt_pillars :: [Pillar]
-  , _gt_pic :: Picture
-  }
+

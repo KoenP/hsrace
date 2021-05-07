@@ -34,11 +34,11 @@ nearby radius (Grid cellSize grid) pos =
     nub [id | ix <- indices, (_,id) <- multiMapLookup ix grid]
 
 
-closestNearby :: Grid w a -> Vec w -> Maybe a
+closestNearby :: Grid w a -> Vec w -> Maybe (Vec w, a)
 closestNearby (Grid cellSize grid) pos =
   let
     (x,y) = scale cellSize pos
-    elements = [ (pos <-> itemPos, id)
+    elements = [ (pos <-> itemPos, (itemPos, id))
                | x' <- [x-1,x,x+1], y' <- [y-1,y,y+1]
                , (itemPos, id) <- multiMapLookup (x',y') grid
                ]

@@ -27,18 +27,18 @@ import Debug.Trace
 
 main :: IO ()
 main = do
-  editorInit <- readTrackFile
+  editorInit <- readTrackSaveData
   runSF $ runMode $ editor editorInit game
 
-readTrackFile :: IO (Cache, FilePath)
-readTrackFile = do 
+readTrackSaveData :: IO (TrackSaveData, FilePath)
+readTrackSaveData = do 
   args <- getArgs
   case args of
     [filename] -> do
       let filepath = "tracks/" ++ filename
-      waypoints :: [Waypoint] <- read <$> readFile filepath
-      traceShow waypoints $ return (traceResult (fromWaypoints waypoints), filepath)
-    _ -> return (emptyCache, "/dev/null")
+      saveData <- read <$> readFile filepath
+      return (saveData, filepath)
+    _ -> return (TrackSaveData [] [], "/dev/null")
       
       
 

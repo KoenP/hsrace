@@ -4,6 +4,7 @@ module Track.Road where
 import Vec
 import Track.Bezier
 import Track.Polygon
+import Track.Types
 import Util
 
 import Control.Applicative
@@ -13,16 +14,6 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Map (Map)
 --------------------------------------------------------------------------------
-
--- | At the smallest scale, a road consists of quadrilaterals which
---   are used for overlap detection and rendering.
-type RoadQuad    = [Vec World]
-
--- | A road is a list of road segments.
-type Road        = [RoadQuad]
-
--- | A road segment is a section of road between two waypoints.
-type RoadSegment = Road
 
 roadWidth, sampleDensity :: Double
 roadWidth = 250
@@ -88,3 +79,29 @@ collisionGridCoords (Vec x y)
 
 coordRange :: (Int,Int) -> (Int,Int) -> [(Int,Int)]
 coordRange (xl,yl) (xh,yh) = liftA2 (,) [xl..xh] [yl..yh]
+
+-- | Return the absolute positions of the anchor and control points
+--   in a waypoint.
+wpVecsAbsolute :: Waypoint -> [Vec World]
+wpVecsAbsolute wp@(Waypoint anchor (cp1,cp2) _ )
+  = [anchor, cp1 ^+^ anchor, cp2 ^+^ anchor, wc1, wc2]
+  where
+    (wc1, wc2) = widthControllerPositions wp
+
+widthControllerPositions :: Waypoint -> (Vec World, Vec World)
+widthControllerPositions (Waypoint anchor (cpoffset,_) width) = 
+  let wcoffset = width *^ perp (normalize cpoffset)
+  in (anchor ^-^ wcoffset, anchor ^+^ wcoffset)
+    
+
+-- | Compute the absolute positions of the control points in a waypoint.
+controlPointsAbsolute :: Waypoint -> (Vec World, Vec World)
+controlPointsAbsolute (Waypoint anchor (e1,e2) _ ) = (anchor ^+^ e1, anchor ^+^ e2)
+
+flipWaypointControlPoints :: Waypoint -> Waypoint
+flipWaypointControlPoints (Waypoint anchor (e1,e2) width)
+  = Waypoint anchor (e2,e1) width
+
+waypointsToBezier :: Waypoint -> Waypoint -> CubicBezier World
+waypointsToBezier (Waypoint anchor1 (_, offset1) _) (Waypoint anchor2 (offset2, _) _)
+  = CubicBezier (anchor1, anchor2) (anchor1 ^+^ offset1, anchor2 ^+^ offset2)

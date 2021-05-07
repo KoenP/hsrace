@@ -2,8 +2,8 @@ module Track.Render where
 
 ---------------------------------------------------------------------------------
 import Vec
-import Track
 import Util
+import Track.Types
 
 import Graphics.Gloss
 ---------------------------------------------------------------------------------

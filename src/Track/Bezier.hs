@@ -5,14 +5,11 @@ module Track.Bezier where
 --------------------------------------------------------------------------------
 import Vec
 import SF
+import Track.Types
 
 import Data.List
 import Prelude hiding (id, (.))
 --------------------------------------------------------------------------------
-
-type Anchors w = (Vec w, Vec w)
-type ControlPoints w = (Vec w, Vec w)
-data CubicBezier w = CubicBezier (Anchors w) (ControlPoints w)
 
 quadraticCurve :: Vec w -> Vec w -> Vec w -> (Double -> Vec w)
 quadraticCurve v1 v2 v3 =

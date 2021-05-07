@@ -34,8 +34,8 @@ pillar pos0 = runMode (notDraggingMode pos0)
       let event = sample (not dragging) (notDraggingMode pos)
       returnA -< (event, (pos, renderPillar True pos))
 
-pillars :: (Vec World, Bool, Bool) ~> ([Pillar], Picture)
-pillars = proc (cursor, dragging, addNew) -> do
+pillars :: [Pillar] -> (Vec World, Bool, Bool) ~> ([Pillar], Picture)
+pillars pillars0 = proc (cursor, dragging, addNew) -> do
   nextID <- PillarID <$> stateful' 0 (+) -< boolToInt addNew
   let newPillarEvent
         = sample addNew ( nextID
@@ -45,9 +45,13 @@ pillars = proc (cursor, dragging, addNew) -> do
   let updateGrid = stoppedDragging || addNew
   rec
     dGrid <- delay (mkGrid gridCellSize []) -< grid
-    nearestPillarID <- delay Nothing <<< highlightedPillar
+    nearestPillarID <- fmap snd ^<< delay Nothing <<< highlightedPillar
       -< (cursor, dragging, dGrid)
-    pillarMap <- sparseUpdater Map.empty
+    pillarMap <- sparseUpdater
+      ( Map.fromList
+      $ map PillarID [0..]
+        `zip`
+         ([((pos, renderPillar False pos), pillar pos) | pos <- pillars0]))
       -< ( []
          , maybeToList newPillarEvent
          , maybeToList nearestPillarID `zip` [(cursor, dragging)]
@@ -61,18 +65,21 @@ pillars = proc (cursor, dragging, addNew) -> do
 
 
 -- TODO fully duplicated from Editor.hs:highlightedWaypoint
-highlightedPillar :: (Vec World, Bool, Grid World PillarID) ~> Maybe PillarID
+highlightedPillar :: (Vec World, Bool, Grid World PillarID)
+                  ~> Maybe (Vec World, PillarID)
 highlightedPillar = runMode notDraggingMode
   where
     notDraggingMode = Mode $ proc (cursorPos, tryingToDrag, grid) -> do
       let
-        nearestWaypointID = closestNearby grid cursorPos
-        dragging = tryingToDrag && isJust nearestWaypointID
+        nearestWaypoint = closestNearby grid cursorPos
+        dragging = tryingToDrag && isJust nearestWaypoint
 
-      returnA -< (sample dragging (draggingMode (fromJust nearestWaypointID)), nearestWaypointID)
+      returnA -< ( sample dragging (draggingMode (fromJust nearestWaypoint))
+                 , nearestWaypoint
+                 )
 
-    draggingMode id = Mode $ proc (_, tryingToDrag, _) -> do
-      returnA -< (sample (not tryingToDrag) notDraggingMode, Just id)
+    draggingMode wp = Mode $ proc (_, tryingToDrag, _) -> do
+      returnA -< (sample (not tryingToDrag) notDraggingMode, Just wp)
 
 renderPillar :: Bool -> Vec World -> Picture
 renderPillar highlight pos = color white

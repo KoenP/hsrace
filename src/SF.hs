@@ -63,6 +63,9 @@ updateSF :: Time -> i -> (o, i ~> o) -> IO (o, i ~> o)
 updateSF dt input (_, SF sf) = return (out, sf')
   where (out, sf') = sf (dt,input)
 
+timeDelta :: () ~> Double
+timeDelta = SF $ \(dt,_) -> (dt, timeDelta)
+
 -- State
 --------
 delay :: a -> (a ~> a)
@@ -96,6 +99,9 @@ cumsumFrom v0 = stateful v0 (const (^+^))
 cumsum :: VectorSpace v a => (v ~> v)
 cumsum = cumsumFrom zeroVec
 
+clock :: () ~> Double
+clock = timeDelta >>> cumsum
+
 integralFrom :: VectorSpace v Time => v -> v ~> v
 integralFrom v0 = stateful v0 step
   where step dt v acc = acc ^+^ dt*^v
@@ -124,6 +130,14 @@ setter a0 = stateful' a0 update
   where update Nothing  a = a
         update (Just a) _ = a
 
+lerpSF :: VectorSpace Double v => Double -> Vec w -> Vec w -> (() ~> Vec w)
+lerpSF time begin end = lerping `untilNothing` constant end
+  where
+    lerping = proc _ -> do
+      t <- fmap (/time) clock -< ()
+      let v = lerp begin end t
+      returnA -< if t > 1 then Nothing else Just v
+
 -- Streams
 ----------
 fromInfiniteList :: [b] -> (a ~> b)
@@ -146,6 +160,11 @@ switch :: (select -> (a ~> b)) -> (a ~> (Maybe select, b)) -> (a ~> b)
 switch select (SF sf) = SF $ \dta -> case sf dta of
   ((Just  s, _), _  ) -> unSF (select s) dta
   ((Nothing, b), sf') -> (b, switch select sf')
+
+untilNothing :: (a ~> Maybe b) -> (a ~> b) -> (a ~> b)
+untilNothing (SF sf1) (SF sf2) = SF $ \dta -> case sf1 dta of
+  (Just b , sf') -> (b, untilNothing sf' (SF sf2))
+  (Nothing, _  ) -> sf2 dta
 
 rSwitch :: (select -> (a ~> (Maybe select, b))) -> (a ~> (Maybe select, b)) -> (a ~> b)
 rSwitch select (SF sf) = SF $ \dta -> case sf dta of

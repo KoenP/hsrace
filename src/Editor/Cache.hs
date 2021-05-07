@@ -5,8 +5,7 @@ module Editor.Cache where
 --------------------------------------------------------------------------------
 import SF
 import Editor.Waypoint
-import Track.Road
-import Track.Render
+import Track
 import Util
 
 import Graphics.Gloss

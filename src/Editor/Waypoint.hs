@@ -4,7 +4,7 @@ module Editor.Waypoint where
 import Vec
 import SF
 import Util
-import Track.Bezier
+import Track
 
 import Graphics.Gloss
 
@@ -17,21 +17,6 @@ import Data.Function hiding ((.))
 gridCellSize :: Double
 gridCellSize = 50
 
--- | Waypoints control the shape of the road.
---   Each waypoint consists of an anchor, which the road passes through,
---   as well as the offsets relative to the anchor (so not absolute
---   positions) of two control points, which determine the curvature of the road.
---   The first control point in a waypoint is the second controller of
---   the road shape before the waypoint, the second control point in a
---   waypoint is the first controller of the road shape after the
---   waypoint.
-data Waypoint = Waypoint
-  { anchor :: Vec World
-  , controlPointsOffsets :: ControlPoints World
-  , width :: Double
-  }
-  deriving (Show, Read)
-
 -- TODO: kinda bad naming
 data WaypointComponent = Anchor | ControlPoint Int | Whisker Int
   deriving Eq
@@ -42,34 +27,8 @@ newtype WaypointID = WaypointID Int
 defaultWaypointWidth :: Double
 defaultWaypointWidth = 250
 
--- | Return the absolute positions of the anchor and control points
---   in a waypoint.
-wpVecsAbsolute :: Waypoint -> [Vec World]
-wpVecsAbsolute wp@(Waypoint anchor (cp1,cp2) _ )
-  = [anchor, cp1 ^+^ anchor, cp2 ^+^ anchor, wc1, wc2]
-  where
-    (wc1, wc2) = widthControllerPositions wp
-
 wpComponents :: [WaypointComponent]
 wpComponents = [Anchor, ControlPoint 1, ControlPoint 2, Whisker 1, Whisker 2]
-
-widthControllerPositions :: Waypoint -> (Vec World, Vec World)
-widthControllerPositions (Waypoint anchor (cpoffset,_) width) = 
-  let wcoffset = width *^ perp (normalize cpoffset)
-  in (anchor ^-^ wcoffset, anchor ^+^ wcoffset)
-    
-
--- | Compute the absolute positions of the control points in a waypoint.
-controlPointsAbsolute :: Waypoint -> (Vec World, Vec World)
-controlPointsAbsolute (Waypoint anchor (e1,e2) _ ) = (anchor ^+^ e1, anchor ^+^ e2)
-
-flipWaypointControlPoints :: Waypoint -> Waypoint
-flipWaypointControlPoints (Waypoint anchor (e1,e2) width)
-  = Waypoint anchor (e2,e1) width
-
-waypointsToBezier :: Waypoint -> Waypoint -> CubicBezier World
-waypointsToBezier (Waypoint anchor1 (_, offset1) _) (Waypoint anchor2 (offset2, _) _)
-  = CubicBezier (anchor1, anchor2) (anchor1 ^+^ offset1, anchor2 ^+^ offset2)
 
 -- | The rendered size of anchors and control points.
 nodeRadius :: Double

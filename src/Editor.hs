@@ -25,8 +25,7 @@ import Data.Maybe
 --------------------------------------------------------------------------------
 
 -- type TrackEditCommand = (Maybe Waypoint, Maybe Pillar)
-
-type EditorInitialization = (Cache, FilePath)
+type EditorInitialization = (TrackSaveData, FilePath)
 
 editor :: EditorInitialization -> Game -> ProgMode
 editor init game = editor' (editorSF init) game
@@ -38,7 +37,7 @@ editor' edSF switchToF = Mode $ proc input -> do
   ((out, cache, pillars), edSF') <- inspect edSF -< input
   let (_, road, roadPic) = readCache cache
   let roadCheck = checkOnRoad road
-  let pic = pictures $ roadPic : map (renderPillar False) pillars
+  let pic = roadPic
   changeMode_ <- sampleOnRisingEdge
     -< ( keyDown ChangeMode input
        , switchToF (editor' edSF' switchToF) (GameTrack roadCheck pillars pic)
@@ -46,25 +45,27 @@ editor' edSF switchToF = Mode $ proc input -> do
   returnA -< (changeMode_, out)
 
 editorSF :: EditorInitialization -> (Input ~> (Output, Cache, [Pillar]))
-editorSF (cache0, trackFilePath) = proc input -> do
+editorSF (TrackSaveData waypoints0 pillars0, trackFilePath) = proc input -> do
   gui_ <- gui -< input
   nextSubMode <- risingEdge -< keyDown EditorNextSubMode input
   -- clearTrackState <- risingEdge -< keyDown EditorClear input
   let cursor = _gui_cursorWorldPos gui_
   let dragging = keyDown LMB input
 
-  (cache, waypointsPic) <- waypoints cache0
+  (cache, waypointsPic) <- waypoints (fromWaypoints waypoints0)
     -< ( cursor
        , dragging
        , keyTriggered RMB input
        )
   let (waypoints_, _, roadPic) = readCache cache
 
-  (pillars, pillarsPic) <- pillars -< (cursor, dragging, keyTriggered Space input)
+  (pillars, pillarsPic) <- pillars pillars0
+    -< (cursor, dragging, keyTriggered Space input)
 
   -- Save current track, if requested.
   let saveKeyTriggered = keyTriggered EditorSave input
-  let writeFile = sample saveKeyTriggered $ FileOutput trackFilePath (show waypoints_)
+  let saveData = TrackSaveData waypoints_ pillars
+  let writeFile = sample saveKeyTriggered $ FileOutput trackFilePath (show saveData)
     -- <- sampleOnRisingEdge
     -- -< ( traceResult $ saveKeyDown
     --    , 
@@ -72,7 +73,6 @@ editorSF (cache0, trackFilePath) = proc input -> do
 
   -- Finalize outputs.
   let pic' = _gui_overlay gui_ (pictures [roadPic, waypointsPic, pillarsPic])
-
   let output = Output pic' writeFile
 
   returnA -< (output, cache, pillars)
@@ -130,10 +130,13 @@ highlightedWaypoint = runMode notDraggingMode
   where
     notDraggingMode = Mode $ proc (cursorPos, tryingToDrag, grid) -> do
       let
-        nearestWaypointID = closestNearby grid cursorPos
+        nearestWaypointID = snd <$> closestNearby grid cursorPos
         dragging = tryingToDrag && isJust nearestWaypointID
 
-      returnA -< (sample dragging (draggingMode (fromJust nearestWaypointID)), nearestWaypointID)
+      returnA -<
+        (sample dragging (draggingMode $ fromJust $ nearestWaypointID)
+        , nearestWaypointID
+        )
 
     draggingMode id = Mode $ proc (_, tryingToDrag, _) -> do
       returnA -< (sample (not tryingToDrag) notDraggingMode, Just id)
