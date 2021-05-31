@@ -10,6 +10,6 @@
 [X] editor: scroll faster if zoomed out
 [ ] editor: rethink interface
 
-[ ] refactor: rendering in game mode
+[X] refactor: rendering in game mode
 [ ] refactor: code duplication in Editor and Pillar
 [ ] refactor: clean up Input module

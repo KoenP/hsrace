@@ -33,6 +33,7 @@ main = do
 readTrackSaveData :: IO (TrackSaveData, FilePath)
 readTrackSaveData = do 
   args <- getArgs
+  print args
   case args of
     [filename] -> do
       let filepath = "tracks/" ++ filename
