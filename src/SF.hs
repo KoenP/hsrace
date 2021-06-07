@@ -153,6 +153,14 @@ slideShow timeDelay bs = head . fst <$> stateful (cycle bs, 0) step
                                  then (bs, t' - timeDelay)
                                  else (b:bs, t')
 
+snack :: [b] -> (Bool ~> Maybe b)
+snack init = proc next -> do
+  rec
+    dbs <- delay init -< bs
+    let bs | next     = tail dbs
+           | not next = dbs
+
+  returnA -< if next then Just (head dbs) else Nothing
 
 -- Switches
 -----------

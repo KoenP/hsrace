@@ -6,6 +6,7 @@ import Vec
 import SF
 import Track
 import Util
+import Editor.Nodes
 
 import Graphics.Gloss
 
@@ -35,33 +36,48 @@ pillar pos0 = runMode (notDraggingMode pos0)
       returnA -< (event, (pos, renderPillar True pos))
 
 pillars :: [Pillar] -> (Vec World, Bool, Bool) ~> ([Pillar], Picture)
-pillars pillars0 = proc (cursor, dragging, addNew) -> do
-  nextID <- PillarID <$> stateful' 0 (+) -< boolToInt addNew
-  let newPillarEvent
-        = sample addNew ( nextID
-                        , ((cursor, renderPillar False cursor), pillar cursor)
-                        )
-  stoppedDragging <- risingEdge -< not dragging
-  let updateGrid = stoppedDragging || addNew
-  rec
-    dGrid <- delay (mkGrid gridCellSize []) -< grid
-    nearestPillarID <- fmap snd ^<< delay Nothing <<< highlightedPillar
-      -< (cursor, dragging, dGrid)
-    pillarMap <- sparseUpdater
-      ( Map.fromList
-      $ map PillarID [0..]
-        `zip`
-         ([((pos, renderPillar False pos), pillar pos) | pos <- pillars0]))
-      -< ( []
-         , maybeToList newPillarEvent
-         , maybeToList nearestPillarID `zip` [(cursor, dragging)]
-         )
-    let newGrid = mkGrid gridCellSize [ (id,pos)
-                                      | (id,(pos,_)) <- Map.toList pillarMap
-                                      ]
-    grid <- setter (mkGrid gridCellSize []) -< sample updateGrid newGrid
+pillars pillars0 =
+  let
+    pillarMap0 = Map.fromList (map PillarID [0..] `zip` pillars0)
+    newIds = map PillarID [length pillars0..]
+  in proc inputs -> do
+    nodesInput_ <- nodesInput newIds -< inputs
+    (nodes_, highlighted) <- nodes pillarRadius pillarMap0 -< nodesInput_
+    let unhighlightedPillars | Just id <- highlighted = Map.elems (id `Map.delete` nodes_)
+                             | otherwise              = Map.elems nodes_
+        highlightedPillar | Just id <- highlighted, Just pos <- Map.lookup id nodes_ = [pos]
+                          | otherwise                                              = []
+    let pic = pictures $ map (renderPillar True) highlightedPillar ++ map (renderPillar False) unhighlightedPillars 
+    returnA -< (Map.elems nodes_, pic)
 
-  returnA -< Bifunctor.second pictures $ unzip $ Map.elems pillarMap
+-- pillars :: [Pillar] -> (Vec World, Bool, Bool) ~> ([Pillar], Picture)
+-- pillars pillars0 = proc (cursor, dragging, addNew) -> do
+--   nextID <- PillarID <$> stateful' 0 (+) -< boolToInt addNew
+--   let newPillarEvent
+--         = sample addNew ( nextID
+--                         , ((cursor, renderPillar False cursor), pillar cursor)
+--                         )
+--   stoppedDragging <- risingEdge -< not dragging
+--   let updateGrid = stoppedDragging || addNew
+--   rec
+--     dGrid <- delay (mkGrid gridCellSize []) -< grid
+--     nearestPillarID <- fmap snd ^<< delay Nothing <<< highlightedPillar
+--       -< (cursor, dragging, dGrid)
+--     pillarMap <- sparseUpdater
+--       ( Map.fromList
+--       $ map PillarID [0..]
+--         `zip`
+--          ([((pos, renderPillar False pos), pillar pos) | pos <- pillars0]))
+--       -< ( []
+--          , maybeToList newPillarEvent
+--          , maybeToList nearestPillarID `zip` [(cursor, dragging)]
+--          )
+--     let newGrid = mkGrid gridCellSize [ (id,pos)
+--                                       | (id,(pos,_)) <- Map.toList pillarMap
+--                                       ]
+--     grid <- setter (mkGrid gridCellSize []) -< sample updateGrid newGrid
+-- 
+--   returnA -< Bifunctor.second pictures $ unzip $ Map.elems pillarMap
 
 
 -- TODO fully duplicated from Editor.hs:highlightedWaypoint
