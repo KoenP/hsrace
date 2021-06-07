@@ -7,6 +7,7 @@ import Editor.Pillar
 import Editor.GUI
 import Editor.Waypoint
 import Editor.Cache
+import Editor.Nodes
 import Track
 import Track.Road
 import SF
