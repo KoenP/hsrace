@@ -20,20 +20,20 @@ newtype PillarID = PillarID Int deriving (Eq, Ord)
 
 gridCellSize = pillarRadius * 4
 
-pillar :: Pillar -> ((Vec World, Bool) ~> (Pillar, Picture))
-pillar pos0 = runMode (notDraggingMode pos0)
-  where
-    notDraggingMode pos0 = Mode $ proc (cursor, dragging) -> do
-      let offset = cursor ^-^ pos0
-      let inRange = norm offset <= pillarRadius
-      startedDragging <- risingEdge -< dragging
-      let event = sample (startedDragging && inRange) (draggingMode offset)
-      returnA -< (event, (pos0, renderPillar inRange pos0))
-
-    draggingMode offset = Mode $ proc (cursor, dragging) -> do
-      let pos = cursor ^+^ offset
-      let event = sample (not dragging) (notDraggingMode pos)
-      returnA -< (event, (pos, renderPillar True pos))
+-- pillar :: Pillar -> ((Vec World, Bool) ~> (Pillar, Picture))
+-- pillar pos0 = runMode (notDraggingMode pos0)
+--   where
+--     notDraggingMode pos0 = Mode $ proc (cursor, dragging) -> do
+--       let offset = cursor ^-^ pos0
+--       let inRange = norm offset <= pillarRadius
+--       startedDragging <- risingEdge -< dragging
+--       let event = sample (startedDragging && inRange) (draggingMode offset)
+--       returnA -< (event, (pos0, renderPillar inRange pos0))
+-- 
+--     draggingMode offset = Mode $ proc (cursor, dragging) -> do
+--       let pos = cursor ^+^ offset
+--       let event = sample (not dragging) (notDraggingMode pos)
+--       returnA -< (event, (pos, renderPillar True pos))
 
 pillars :: [Pillar] -> (Vec World, Bool, Bool) ~> ([Pillar], Picture)
 pillars pillars0 =

@@ -15,6 +15,13 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 --------------------------------------------------------------------------------
 
+-- TODO: kinda bad naming
+data WaypointComponent = Anchor | ControlPoint Int | Whisker Int
+  deriving Eq
+
+wpComponents :: [WaypointComponent]
+wpComponents = [Anchor, ControlPoint 1, ControlPoint 2, Whisker 1, Whisker 2]
+
 roadWidth, sampleDensity :: Double
 roadWidth = 250
 sampleDensity = 0.01
@@ -87,6 +94,9 @@ wpVecsAbsolute wp@(Waypoint anchor (cp1,cp2) _ )
   = [anchor, cp1 ^+^ anchor, cp2 ^+^ anchor, wc1, wc2]
   where
     (wc1, wc2) = widthControllerPositions wp
+
+wpVecsWithComponents :: Waypoint -> [(WaypointComponent, Vec World)]
+wpVecsWithComponents wp = wpComponents `zip` wpVecsAbsolute wp
 
 widthControllerPositions :: Waypoint -> (Vec World, Vec World)
 widthControllerPositions (Waypoint anchor (cpoffset,_) width) = 

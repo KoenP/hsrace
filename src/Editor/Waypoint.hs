@@ -5,6 +5,7 @@ import Vec
 import SF
 import Util
 import Track
+import Editor.GUI
 
 import Graphics.Gloss
 
@@ -17,22 +18,17 @@ import Data.Function hiding ((.))
 gridCellSize :: Double
 gridCellSize = 50
 
--- TODO: kinda bad naming
-data WaypointComponent = Anchor | ControlPoint Int | Whisker Int
-  deriving Eq
-
 newtype WaypointID = WaypointID Int
   deriving (Show, Eq, Ord)
+  deriving Enum via Int
 
 defaultWaypointWidth :: Double
 defaultWaypointWidth = 250
 
-wpComponents :: [WaypointComponent]
-wpComponents = [Anchor, ControlPoint 1, ControlPoint 2, Whisker 1, Whisker 2]
-
 -- | The rendered size of anchors and control points.
 nodeRadius :: Double
 nodeRadius = 35
+
 
 -- | Signal function that controls the positions of the nodes of a
 --   waypoint in space, based on user mouse inputs.
@@ -163,10 +159,10 @@ renderWaypoint wp@(Waypoint _ (offset,_) _) highlightLine fn
                                else []
     in pictures
        $ color (if highlightLine then white else greyN 0.6) (linePic [cp1,cp2])
+       : whiskers
        : [ translatePic pos (fn component)
          | (component, pos) <- wpComponents `zip` positions
          ]
-       ++ [whiskers]
 
 
 unhighlighted :: WaypointComponent -> Picture

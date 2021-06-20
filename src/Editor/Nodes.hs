@@ -12,6 +12,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List
 import Data.Function hiding ((.))
+import Debug.Trace
 --------------------------------------------------------------------------------
 
 data NodesInput id = NodesInput
@@ -45,6 +46,8 @@ nodes radius init = ((,) <$> vectors <*> fmap fst . highlighted) <$> stateful' (
     -- is currently highlighted.
     step (NodesInput cursor True Nothing) (State vecs (Just (id, offset)))
       = State (Map.insert id (cursor ^+^ offset) vecs) (Just (id, offset))
+-- offset = pos - cursor
+-- pos = cursor + offset
 
     -- Place a new node.
     step (NodesInput cursor _ (Just newId)) (State vecs _)
