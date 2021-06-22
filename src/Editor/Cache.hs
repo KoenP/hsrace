@@ -14,8 +14,12 @@ import Graphics.Gloss
 
 import Prelude hiding ((.), id)
 import Control.Applicative
+import Control.Monad
+import Data.Functor
+import Data.Maybe
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Tuple
 --------------------------------------------------------------------------------
 
 -- | For each waypoint ID, we store the waypoint and the polygons and picture
@@ -33,16 +37,109 @@ fromWaypoints waypoints = composeMany
   (reverse [writeWaypoint id wp | (id,wp) <- map WaypointID [0..] `zip` waypoints])
   emptyCache
 
-
-cacheSF :: Cache -> (Maybe (WaypointID, Waypoint), Maybe (WaypointID, Waypoint)) ~> Cache
-cacheSF cache0 = uncurry (<|>) ^>> stateful' cache0 step
+waypointCache :: Cache -> ((Vec World, WaypointsAction) ~> (Cache, Picture))
+waypointCache cache0 = runMode (notDraggingMode cache0)
   where
-    step :: Maybe (WaypointID, Waypoint) -> Cache -> Cache
-    step Nothing        old = old
-    step (Just (id,wp)) old =
-      let cache' = writeWaypoint id wp old
-      in case Map.lookupGT id cache' of Just (id', (wp',_,_)) -> writeWaypoint id' wp' cache'
-                                        Nothing -> cache'
+    notDraggingMode ::  Cache -> Mode (Vec World, WaypointsAction) (Cache, Picture)
+    notDraggingMode cache0 =
+      let
+        grid0 = cacheToGrid cache0
+      in
+        Mode $ proc (cursorPos, action) -> do
+          -- Add new waypoint.
+          let
+            newCache = guard (action == PlaceNewWaypoint)
+                       $> appendWaypoint cursorPos cache0
+            newGrid = fmap cacheToGrid newCache
+          cache <- setter cache0 -< newCache
+          grid <- setter grid0 -< newGrid
+
+          -- Start dragging if the user starts holding down the mouse button
+          -- while the mouse is within range of a node.
+          let
+            highlightedWaypoint = do
+              (pos, nearestWaypointID) <- closestNearby grid cursorPos
+              guard (pos <-> cursorPos <= nodeRadius)
+              return (pos, nearestWaypointID)
+            highlightedWaypointID = fmap snd highlightedWaypoint
+              
+          startDragging <- risingEdge -< action == DragWaypoint
+          let
+            startDraggingEvent = guard startDragging >> highlightedWaypoint
+              <&> \(pos,id) -> draggingMode (pos ^-^ cursorPos) id cache
+
+          -- Render waypoints.
+          let pic = renderWaypoints (maybeToList highlightedWaypointID) cache
+
+          returnA -< (startDraggingEvent, (cache, pic))
+
+    -- Drag a waypoint node around. The behavior depends strongly on
+    -- which type of node is being dragged, see the `edit` function.
+    -- We stop dragging when the drag button is released.
+    draggingMode :: Vec World -> (WaypointID, WaypointComponent) -> Cache
+                 -> Mode (Vec World, WaypointsAction) (Cache, Picture)
+    draggingMode offset (id,component) cache0 =
+      let
+        waypoint0 = fromJust (lookupWaypoint id cache0)
+        
+        -- This function describes how to update the waypoint as one
+        -- of its components is being dragged.
+        edit :: Vec World -> Waypoint -> Waypoint
+        edit
+          -- Moving the anchor is straightforward, we just overwrite the anchor coordinates.
+          | Anchor <- component
+          = \cursorPos (Waypoint _ offsets width) -> Waypoint (cursorPos ^+^ offset) offsets width
+
+          -- When a control point point is moved, we mirror its
+          -- rotation around the anchor in the other control point.
+          | ControlPoint i <- component
+          = \cursorPos (Waypoint anchor cpOffsets width) ->
+              let
+                cpIdentities           = if i == 1 then \x -> x else swap
+                (cp1Offset, cp2Offset) = cpIdentities cpOffsets
+                newCp1Absolute         = cursorPos ^+^ offset
+                newCp1Offset           = newCp1Absolute ^-^ anchor
+                theta                  = newCp1Offset `signedInternalAngle` cp1Offset
+                newCp2Offset           = (-theta) `rotVec` cp2Offset
+              in
+                Waypoint anchor (cpIdentities (newCp1Offset, newCp2Offset)) width
+
+          -- We drag a whisker alongside an imaginary "rail"
+          -- perpendicular to the the heading of the road in the
+          -- waypoint.
+          | Whisker _ <- component
+          = \cursorPos (Waypoint anchor (offset1, offset2) _) ->
+              let
+                rail = normalize (perp offset1)
+                width = abs ((cursorPos ^+^ offset ^-^ anchor) `scalarProjectionOnto` rail)
+              in
+                Waypoint anchor (offset1, offset2) width
+
+        -- Update the cache based on cursor movement.
+        -- We update the entry for the dragged waypoint, as well as
+        -- for the next waypoint in the cache, if it exists, to update
+        -- the cached road and picture.
+        step :: Vec World -> (Cache, Waypoint) -> (Cache, Waypoint)
+        step cursorPos (old, waypoint) =
+          let newWp = edit cursorPos waypoint
+              cache' = writeWaypoint id newWp old
+          in case Map.lookupGT id cache' of Just (id', (newNextWp,_,_)) -> (writeWaypoint id' newNextWp cache', newWp)
+                                            Nothing -> (cache', newWp)
+      in
+        Mode $ proc (cursorPos, action) -> do
+          (cache, _) <- stateful' (cache0, waypoint0) step -< cursorPos
+          let stopDraggingEvent = sample (action == NoWaypointAction) (notDraggingMode cache)
+          returnA -< (stopDraggingEvent, (cache, renderWaypoints [(id,component)] cache))
+      
+
+    renderWaypoints :: [(WaypointID, WaypointComponent)] -> Cache -> Picture
+    renderWaypoints highlightedIDs cache = pictures
+      $  [renderWaypoint wp True (highlighting component)
+         | (id,component) <- highlightedIDs, wp <- maybeToList (lookupWaypoint id cache)
+         ]
+      ++ [ renderWaypoint wp False unhighlighted
+         | wp <- cacheWaypoints (mapDeleteMany (map fst highlightedIDs) cache)
+         ]
 
 ----------------------------------------
 -- Update cache.
@@ -60,6 +157,8 @@ appendWaypoint position cache
       waypoint = Waypoint position (offset1', offset2') width
     in
       writeWaypoint (succ id) waypoint cache
+  | otherwise
+  = Map.fromList [(WaypointID 0, (Waypoint position (Vec 0 (-100), Vec 0 100) defaultWaypointWidth, [], blank))]
 
 -- | Insert or overwrite waypoint with the given ID, updating the
 --   cached road and picture *for that waypoint only*.

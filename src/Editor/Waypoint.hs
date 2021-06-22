@@ -2,17 +2,10 @@ module Editor.Waypoint where
 
 --------------------------------------------------------------------------------
 import Vec
-import SF
 import Util
 import Track
-import Editor.GUI
 
 import Graphics.Gloss
-
-import Prelude hiding ((.))
-import Control.Monad
-import Data.List
-import Data.Function hiding ((.))
 --------------------------------------------------------------------------------
 
 gridCellSize :: Double
@@ -22,124 +15,15 @@ newtype WaypointID = WaypointID Int
   deriving (Show, Eq, Ord)
   deriving Enum via Int
 
+data WaypointsAction = NoWaypointAction | DragWaypoint | PlaceNewWaypoint
+  deriving (Eq, Ord)
+
 defaultWaypointWidth :: Double
 defaultWaypointWidth = 250
 
 -- | The rendered size of anchors and control points.
 nodeRadius :: Double
 nodeRadius = 35
-
-
--- | Signal function that controls the positions of the nodes of a
---   waypoint in space, based on user mouse inputs.
-waypoint :: Waypoint -> ((Vec World, Bool) ~> (Waypoint, Picture))
-waypoint = runMode . notSelectedMode
-  where
-    -- This mode runs when none of the nodes of this waypoint are selected
-    -- for dragging.
-    notSelectedMode  :: Waypoint -> Mode (Vec World, Bool) (Waypoint, Picture)
-    notSelectedMode wp@(Waypoint anchor _ _) =
-      Mode $ proc (cursorWorldPos, selecting) -> do
-        let
-          -- (e1,e2)   = controlPointsAbsolute wp
-          vecs    = wpVecsAbsolute wp
-          offsets = map (^-^ cursorWorldPos) vecs
-          inRange = any ((<= nodeRadius) . norm) offsets
-
-          -- Here we check which nodes the cursor is in range of.
-          -- Based on that, we determine what the next mode should be
-          -- (if the user starts dragging, see the `event` variable),
-          -- and which node should be highlighted.
-          (_, nextMode, nodeRenderFn)  = minimumBy
-              (compare `on` (norm . fst3))
-              [ (offset, f offset, id)
-              | (offset, f, id) <- zip3 offsets
-                  [ dragAnchorMode wp
-                  , dragControlPointMode False wp
-                  , dragControlPointMode True  (flipWaypointControlPoints wp) 
-                  , dragWhisker 1 wp
-                  , dragWhisker 2 wp
-                  ]
-                  [ highlighting Anchor
-                  , highlighting (ControlPoint 1)
-                  , highlighting (ControlPoint 2)
-                  , highlighting (Whisker 1)
-                  , highlighting (Whisker 2)
-                  ]
-              ]
-
-        selectingRisingEdge <- risingEdge -< selecting
-
-        -- When the user starts dragging while the cursor is in range
-        -- of one of the nodes, switch to the appropriate dragging state.
-        event <- sampleOnRisingEdge -< (selectingRisingEdge && inRange, nextMode)
-
-        let pic = renderWaypoint wp inRange $ if inRange
-              then nodeRenderFn
-              else unhighlighted
-
-        returnA -< ( event , (wp, pic) )
-
-    -- Dragging the anchor is straightforward: we just move the anchor
-    -- and don't change the offsets.
-    -- The `offset` variable keeps track of how far from the anchor the
-    -- mouse cursor was when the user started dragging.
-    dragAnchorMode :: Waypoint -> Vec World -> Mode (Vec World, Bool) (Waypoint, Picture)
-    dragAnchorMode wp0 offset = release $ proc cursorWorldPos -> do
-      let anchor = cursorWorldPos ^+^ offset
-      let wp    = wp0 { anchor = anchor }
-
-      -- Return to `notSelectedMode` if the user stops dragging.
-      returnA -< (wp, renderWaypoint wp True (highlighting Anchor))
-
-    -- Dragging control points is a bit more involved.
-    -- We calculate the rotation caused by the movement relative to the anchor.
-    -- That rotation is mirrorred for the other control node.
-    -- To save us some duplicated code, this function always assumes that
-    -- the first control node is the one being dragged. If the `flip` parameter
-    -- equals `True`, the caller indicates that they flipped the control
-    -- points, and that they want this mode to flip them back.
-    dragControlPointMode :: Bool -> Waypoint -> Vec World
-                         -> Mode (Vec World, Bool) (Waypoint, Picture)
-    dragControlPointMode flip (Waypoint anchor (e1init,e2init) width) offset
-      = release $ proc cursorWorldPos -> do
-          let
-            e1Absolute = cursorWorldPos ^+^ offset
-          d_e1Absolute <- delay (e1init ^+^ anchor) -< e1Absolute
-          let
-            e1  = e1Absolute  ^-^ anchor
-            e1_ = d_e1Absolute ^-^ anchor
-            dTheta = e1 `signedInternalAngle` e1_
-          theta <- cumsum -< (-dTheta)
-          let
-            e2  =  theta `rotVec` e2init
-    
-          let wp | flip      = Waypoint anchor (e2,e1) width
-                 | otherwise = Waypoint anchor (e1,e2) width
-
-          let pic | flip      = renderWaypoint wp True (highlighting (ControlPoint 2))
-                  | otherwise = renderWaypoint wp True (highlighting (ControlPoint 1))
-          returnA -< (wp, pic)
-
-    release :: (Vec World ~> (Waypoint, Picture))
-            -> Mode (Vec World, Bool) (Waypoint, Picture)
-    release sf = Mode $ proc (cursor, dragging) -> do
-      (waypoint, picture) <- sf -< cursor
-      let event = sample (not dragging) (notSelectedMode waypoint)
-      returnA -< (event, (waypoint, picture))
-
-    dragWhisker :: Int -> Waypoint -> Vec World
-                -> Mode (Vec World, Bool) (Waypoint, Picture)
-    dragWhisker whiskerID (Waypoint anchor (offset1,offset2) _) cursorOffset =
-      let rail          = normalize (perp offset1)
-          fWidth cursor
-            = abs ((cursor ^+^ cursorOffset ^-^ anchor) `scalarProjectionOnto` rail)
-          render wp     = renderWaypoint wp True (highlighting (Whisker whiskerID))
-          output cursor = let wp = Waypoint anchor (offset1,offset2) (fWidth cursor)
-                          in (wp , render wp)
-          
-      in release (arr output)
-
 
 -- | Renders the waypoint. If the cursor is close enough to a node,
 --   that node is higlighted by rendering it as a solid rather than as
@@ -177,20 +61,3 @@ highlighting wc wc' | wc == wc' = case wc of
                         ControlPoint _    -> color green (circleSolidPic nodeRadius)
                         Whisker _ -> blank
                     | otherwise = unhighlighted wc'
-  
--- renderWaypoint :: Waypoint -> Maybe Int -> Picture
--- renderWaypoint wp Nothing =
---   let [anchor,c1,c2] = wpVecsAbsolute wp
---   in pictures [ color (greyN 0.6) (linePic [c1,c2])
---               , translatePic anchor (color red (circlePic nodeRadius))
---               , translatePic c1 (color green (circlePic nodeRadius))
---               , translatePic c2 (color green (circlePic nodeRadius))
---               ]
--- renderWaypoint wp (Just n) =
---   let [anchor,c1,c2] = wpVecsAbsolute wp
---   in pictures $ color white (linePic [c1,c2]) : zipWith ($)
---      [ \f -> translatePic anchor (color red (f nodeRadius))
---      , \f -> translatePic c1 (color green (f nodeRadius))
---      , \f -> translatePic c2 (color green (f nodeRadius))
---      ]
---      (replicate n circlePic ++ [circleSolidPic] ++ repeat circlePic)
