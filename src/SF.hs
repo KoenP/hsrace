@@ -77,6 +77,11 @@ delay a0 = SF $ \(_,a) -> (a0, delay a)
 stepper :: a -> (a -> a) -> (b ~> a)
 stepper s0 update = SF $ const $ let s1 = update s0 in (s1, stepper s1 update)
 
+setter :: a -> Maybe a ~> a
+setter a0 = stateful' a0 update
+  where update Nothing  a = a
+        update (Just a) _ = a
+
 stateful :: s -> (Time -> i -> s -> s) -> (i ~> s)
 stateful a0 update = SF sf
   where sf (dt,b) = let a1 = update dt b a0 in (a1, stateful a1 update)
@@ -124,11 +129,6 @@ averageRecentHistory nFrames = avg <$> recentHistory nFrames
 recentHistoryByTime :: Time -> Time -> (a ~> [a])
 recentHistoryByTime frameInterval historyDuration
   = recentHistory (ceiling $ historyDuration / frameInterval)
-
-setter :: a -> Maybe a ~> a
-setter a0 = stateful' a0 update
-  where update Nothing  a = a
-        update (Just a) _ = a
 
 lerpSF :: VectorSpace Double v => Double -> Vec w -> Vec w -> (() ~> Vec w)
 lerpSF time begin end = lerping `untilNothing` constant end

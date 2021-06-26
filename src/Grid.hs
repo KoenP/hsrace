@@ -45,6 +45,5 @@ closestNearby (Grid cellSize grid) pos =
   in
     snd <$> safeMinimumBy (compare `on` fst) elements
 
-
 renderGrid :: Grid w a -> Picture
 renderGrid = _gridMap >>> Map.elems >>> concat >>> map (\(pos,_) -> plusPicture white pos 7) >>> pictures

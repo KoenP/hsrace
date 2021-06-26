@@ -25,6 +25,7 @@ import Data.Tuple
 -- | For each waypoint ID, we store the waypoint and the polygons and picture
 --   for the piece of the road leading back to the previous waypoint.
 type Cache = Map WaypointID (Waypoint, Road, Picture)
+type CacheGrid = Grid World (WaypointID, WaypointComponent)
 
 ----------------------------------------
 -- Construct cache.
@@ -46,22 +47,26 @@ waypointCache cache0 = runMode (notDraggingMode cache0)
         grid0 = cacheToGrid cache0
       in
         Mode $ proc (cursorPos, action) -> do
-          -- Add new waypoint.
-          let
-            newCache = guard (action == PlaceNewWaypoint)
-                       $> appendWaypoint cursorPos cache0
-            newGrid = fmap cacheToGrid newCache
-          cache <- setter cache0 -< newCache
-          grid <- setter grid0 -< newGrid
+          rec
+            dGrid <- delay grid0 -< grid
 
-          -- Start dragging if the user starts holding down the mouse button
-          -- while the mouse is within range of a node.
-          let
-            highlightedWaypoint = do
-              (pos, nearestWaypointID) <- closestNearby grid cursorPos
-              guard (pos <-> cursorPos <= nodeRadius)
-              return (pos, nearestWaypointID)
-            highlightedWaypointID = fmap snd highlightedWaypoint
+            -- Start dragging if the user starts holding down the mouse button
+            -- while the mouse is within range of a node.
+            let
+              highlightedWaypoint = do
+                (pos, nearestWaypointID) <- closestNearby dGrid cursorPos
+                guard (pos <-> cursorPos <= nodeRadius)
+                return (pos, nearestWaypointID)
+              highlightedWaypointID = fmap snd highlightedWaypoint
+        
+            -- Add or delete waypoints.
+            dCache <- delay cache0 -< cache
+            let
+              newCache = performCardinalityAction action highlightedWaypointID cursorPos dCache
+              newGrid  = fmap cacheToGrid newCache
+            cache <- setter cache0 -< newCache
+            grid  <- setter grid0 -< newGrid
+
               
           startDragging <- risingEdge -< action == DragWaypoint
           let
@@ -141,6 +146,15 @@ waypointCache cache0 = runMode (notDraggingMode cache0)
          | wp <- cacheWaypoints (mapDeleteMany (map fst highlightedIDs) cache)
          ]
 
+-- | Perform actions that change the number of waypoints (insertions, deletions, appends, ...).
+performCardinalityAction :: WaypointsAction -> Maybe (WaypointID, WaypointComponent) -> Vec World -> Cache -> Maybe Cache
+performCardinalityAction PlaceNewWaypoint _                cursor old = Just $ appendWaypoint cursor old
+performCardinalityAction DeleteWaypoint   maybeHighlighted _      old = do
+  (id, component) <- maybeHighlighted
+  guard (component == Anchor)
+  return (deleteWaypoint id old)
+performCardinalityAction _                _                 _      _   = Nothing
+ 
 ----------------------------------------
 -- Update cache.
 ----------------------------------------
@@ -160,6 +174,13 @@ appendWaypoint position cache
   | otherwise
   = Map.fromList [(WaypointID 0, (Waypoint position (Vec 0 (-100), Vec 0 100) defaultWaypointWidth, [], blank))]
 
+deleteWaypoint :: WaypointID -> Cache -> Cache
+deleteWaypoint id old =
+  let withoutId = id `Map.delete` old
+  in case id `Map.lookupGT` old of
+    Just (nextId, (wp,_,_)) -> writeWaypoint nextId wp withoutId
+    Nothing                 -> withoutId
+    
 -- | Insert or overwrite waypoint with the given ID, updating the
 --   cached road and picture *for that waypoint only*.
 writeWaypoint :: WaypointID -> Waypoint -> Cache -> Cache

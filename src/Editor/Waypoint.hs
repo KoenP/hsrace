@@ -15,7 +15,8 @@ newtype WaypointID = WaypointID Int
   deriving (Show, Eq, Ord)
   deriving Enum via Int
 
-data WaypointsAction = NoWaypointAction | DragWaypoint | PlaceNewWaypoint
+data WaypointsAction
+  = NoWaypointAction | DragWaypoint | PlaceNewWaypoint | DeleteWaypoint
   deriving (Eq, Ord)
 
 defaultWaypointWidth :: Double
