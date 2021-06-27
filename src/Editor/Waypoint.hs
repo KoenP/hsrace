@@ -6,14 +6,21 @@ import Util
 import Track
 
 import Graphics.Gloss
+
+import Data.Ratio
 --------------------------------------------------------------------------------
 
 gridCellSize :: Double
 gridCellSize = 50
 
-newtype WaypointID = WaypointID Int
+newtype WaypointID = WaypointID (Ratio Int)
   deriving (Show, Eq, Ord)
-  deriving Enum via Int
+
+nextWaypointID :: WaypointID -> WaypointID
+nextWaypointID (WaypointID n) = WaypointID (n + 1)
+
+betweenWaypointIDs :: WaypointID -> WaypointID -> WaypointID
+betweenWaypointIDs (WaypointID a) (WaypointID b) = WaypointID ((a + b) / 2)
 
 data WaypointsAction
   = NoWaypointAction | DragWaypoint | PlaceNewWaypoint | DeleteWaypoint

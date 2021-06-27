@@ -50,15 +50,9 @@ editor' edSF switchToF = Mode $ proc input -> do
 editorSF :: EditorInitialization -> (Input ~> (Output, Cache, [Pillar]))
 editorSF (TrackSaveData waypoints0 pillars0, trackFilePath) = proc input -> do
   gui_ <- gui -< input
-  -- clearTrackState <- risingEdge -< keyDown EditorClear input
   let cursor = _gui_cursorWorldPos gui_
   let dragging = keyDown LMB input
 
-  -- (cache, waypointsPic, waypointIsHighlighted) <- waypoints (fromWaypoints waypoints0)
-  --   -< ( cursor
-  --      , dragging
-  --      , keyTriggered RMB input
-  --      )
   (cache, waypointsPic) <- waypointCache (fromWaypoints waypoints0) -< wpsInputs gui_ input
   let (waypoints_, _, roadPic) = readCache cache
   let waypointIsHighlighted = False -- TODO
@@ -70,10 +64,6 @@ editorSF (TrackSaveData waypoints0 pillars0, trackFilePath) = proc input -> do
   let saveKeyTriggered = keyTriggered EditorSave input
   let saveData = TrackSaveData waypoints_ pillars
   let writeFile = sample saveKeyTriggered $ FileOutput trackFilePath (show saveData)
-    -- <- sampleOnRisingEdge
-    -- -< ( traceResult $ saveKeyDown
-    --    , 
-    --    )
 
   -- Finalize outputs.
   let pic' = _gui_overlay gui_ (pictures [roadPic, waypointsPic, pillarsPic])
@@ -114,6 +104,3 @@ wpsInputs gui input = (_gui_cursorWorldPos gui, action)
            | keyDown LMB input               = DragWaypoint
            | keyTriggered EditorDelete input = DeleteWaypoint
            | otherwise                       = NoWaypointAction
-  
-
---------------------------------------------------------------------------------

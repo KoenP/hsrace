@@ -4,6 +4,8 @@ module Editor.Cache where
 
 --------------------------------------------------------------------------------
 import SF
+import Track.Road
+import Track.Bezier
 import Editor.Waypoint
 import Track
 import Util
@@ -148,12 +150,14 @@ waypointCache cache0 = runMode (notDraggingMode cache0)
 
 -- | Perform actions that change the number of waypoints (insertions, deletions, appends, ...).
 performCardinalityAction :: WaypointsAction -> Maybe (WaypointID, WaypointComponent) -> Vec World -> Cache -> Maybe Cache
-performCardinalityAction PlaceNewWaypoint _                cursor old = Just $ appendWaypoint cursor old
+performCardinalityAction PlaceNewWaypoint Nothing          cursor old = Just $ appendWaypoint cursor old
+performCardinalityAction PlaceNewWaypoint (Just (id,_))    _      old = Just $ insertWaypointBefore id old
+
 performCardinalityAction DeleteWaypoint   maybeHighlighted _      old = do
   (id, component) <- maybeHighlighted
   guard (component == Anchor)
   return (deleteWaypoint id old)
-performCardinalityAction _                _                 _      _   = Nothing
+performCardinalityAction _                _                _      _   = Nothing
  
 ----------------------------------------
 -- Update cache.
@@ -170,7 +174,7 @@ appendWaypoint position cache
       offset2' = len *^ dir
       waypoint = Waypoint position (offset1', offset2') width
     in
-      writeWaypoint (succ id) waypoint cache
+      writeWaypoint (nextWaypointID id) waypoint cache
   | otherwise
   = Map.fromList [(WaypointID 0, (Waypoint position (Vec 0 (-100), Vec 0 100) defaultWaypointWidth, [], blank))]
 
@@ -180,6 +184,24 @@ deleteWaypoint id old =
   in case id `Map.lookupGT` old of
     Just (nextId, (wp,_,_)) -> writeWaypoint nextId wp withoutId
     Nothing                 -> withoutId
+
+insertWaypointBefore :: WaypointID -> Cache -> Cache
+insertWaypointBefore idOfNext old = fromMaybe old $ do
+  (wpNext, _, _) <- idOfNext `Map.lookup` old
+  (wpPrevId, (wpPrev, _, _)) <- idOfNext `Map.lookupLT` old
+  let id            = betweenWaypointIDs wpPrevId idOfNext
+  let bezier        = waypointsToBezier wpPrev wpNext
+  let curve         = cubicCurve  bezier
+  let curveDeriv    = cubicCurveDerivative bezier
+  let anchor        = curve 0.5
+  let controlPoints = (20 *^ normalize (neg (curveDeriv 0.5)), 20 *^ normalize (curveDeriv 0.5))
+  let wp            = Waypoint anchor controlPoints ((width wpPrev + width wpNext) / 2)
+  return $ refreshWaypoint idOfNext (writeWaypoint id wp old)
+
+
+refreshWaypoint :: WaypointID -> Cache -> Cache
+refreshWaypoint id old | Just (wp,_,_) <- id `Map.lookup` old = writeWaypoint id wp old
+                       | otherwise                           = error "tried to refresh nonexistant waypoint"
     
 -- | Insert or overwrite waypoint with the given ID, updating the
 --   cached road and picture *for that waypoint only*.
