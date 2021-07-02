@@ -185,6 +185,10 @@ deleteWaypoint id old =
     Just (nextId, (wp,_,_)) -> writeWaypoint nextId wp withoutId
     Nothing                 -> withoutId
 
+-- | Insert a waypoint before the waypoint with the given ID.
+--   The new waypoints is automatically given its ID.
+--   An attempt is made to place it so that it doesn't change the track
+--   very much (but I didn't attempt to find the mathematically best way to do this).
 insertWaypointBefore :: WaypointID -> Cache -> Cache
 insertWaypointBefore idOfNext old = fromMaybe old $ do
   (wpNext, _, _) <- idOfNext `Map.lookup` old
@@ -194,7 +198,7 @@ insertWaypointBefore idOfNext old = fromMaybe old $ do
   let curve         = cubicCurve  bezier
   let curveDeriv    = cubicCurveDerivative bezier
   let anchor        = curve 0.5
-  let controlPoints = (20 *^ normalize (neg (curveDeriv 0.5)), 20 *^ normalize (curveDeriv 0.5))
+  let controlPoints = (zeroVec, zeroVec) -- (20 *^ normalize (neg (curveDeriv 0.5)), 20 *^ normalize (curveDeriv 0.5))
   let wp            = Waypoint anchor controlPoints ((width wpPrev + width wpNext) / 2)
   return $ refreshWaypoint idOfNext (writeWaypoint id wp old)
 
