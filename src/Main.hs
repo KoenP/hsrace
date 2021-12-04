@@ -37,7 +37,9 @@ readTrackSaveData = do
   case args of
     [filename] -> do
       let filepath = "tracks/" ++ filename
-      saveData <- read <$> readFile filepath
+      fileContents <- readFile filepath
+      let saveData | fileContents == "" = TrackSaveData [] []
+                   | otherwise          = read fileContents
       return (saveData, filepath)
     _ -> return (TrackSaveData [] [], "/dev/null")
       
@@ -54,11 +56,11 @@ readTrackSaveData = do
 --   saveData <- (fromMaybe def . readMaybe <$> readFile "track") `catch` h
 -- 
 --   return (fromSaveData saveData, trackStateFromSaveData saveData)
-  
+
 runSF :: (Input ~> Output) -> IO ()
 runSF sf
   = playIO
-    (InWindow "hsrace test" (1716,1397) (800,600))
+    (InWindow "hsrace test" (toTupIntegral windowSize) (800,600))
     black
     120
     ([], emptyInput, (Output blank Nothing, sf))

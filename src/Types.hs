@@ -19,4 +19,3 @@ type ProgMode = Mode Input Output
 type ProgSF = Input ~> Output
 
 type Game = ProgMode -> GameTrack -> ProgMode
--- type Editor = 

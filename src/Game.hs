@@ -12,6 +12,7 @@ import Types
 import Util
 import Grid
 import Editor.Pillar
+import Overlay
 import Game.Render
 import Game.Types
 
@@ -114,10 +115,17 @@ game switchTo (GameTrack onRoad pillars trackPic) =
         viewPort = ViewPort position 0 zoom
         cursorWorldPos = windowCoordsToWorldCoords viewPort cursorPos
 
+    timePassed_ <- timePassed -< ()
+    let overlay = fromWindowTop (_input_windowSize input) 70
+                $ color white
+                $ Graphics.Gloss.scale 0.5 0.5
+                $ translatePic (Vec (-20) 0)
+                $ text (minutesSecondsCentiseconds timePassed_)
     pic <- render pillars trackPic
       -< RenderData viewPort position rotation accelerating hook
     
     returnA -<
       ( changeMode_
-      , Output pic Nothing
+      , Output (pictures [pic, overlay]) Nothing
       )
+

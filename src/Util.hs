@@ -132,3 +132,16 @@ snd3 (_,b,_) = b
 
 bimap' :: Bifunctor f => (a -> b) -> f a a -> f b b
 bimap' fn = bimap fn fn
+
+toMaybe :: Bool -> a -> Maybe a
+toMaybe False _ = Nothing
+toMaybe True  a = Just a
+
+minutesSecondsCentiseconds :: RealFrac a => a -> String
+minutesSecondsCentiseconds time = concat [show mins, ":", pad (show secs), ".", pad (show csecs)]
+  where
+    (integralPart, fractionalPart) = properFraction time
+    (mins, secs) = integralPart `divMod` 60
+    csecs = floor (fractionalPart * 100)
+    pad [x] = ['0', x]
+    pad xs = xs

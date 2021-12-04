@@ -32,8 +32,12 @@ data Input = Input
   , _input_keysTriggered :: Set GameKey
   -- , _input_mouseMovement :: Vec Window
   , _input_cursorPos     :: Vec Window
+  , _input_windowSize    :: Vec Window
   } deriving Show
 makeLenses 'Input
+
+windowSize :: Vec Window
+windowSize = Vec 1716 1397
 
 keyDown :: GameKey -> Input -> Bool
 keyDown key input = key `Set.member` _input_keysDown input
@@ -42,11 +46,11 @@ keyTriggered :: GameKey -> Input -> Bool
 keyTriggered key input = key `Set.member` _input_keysTriggered input
 
 emptyInput :: Input
-emptyInput = Input Set.empty Set.empty zeroVec
+emptyInput = Input Set.empty Set.empty zeroVec windowSize
 
 constructInput :: Input -> [Event] -> Input
-constructInput (Input down _ cursorPos) events
-  = Input ((down `Set.union` keysTriggered) Set.\\ keysReleased) keysTriggered mouseMovement
+constructInput (Input down _ cursorPos _) events
+  = Input ((down `Set.union` keysTriggered) Set.\\ keysReleased) keysTriggered mouseMovement windowSize
   where
     keysTriggered, keysReleased :: Set GameKey
     mouseMovement :: Vec Window

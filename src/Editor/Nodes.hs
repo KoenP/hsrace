@@ -4,8 +4,10 @@ module Editor.Nodes where
 import Vec
 import SF
 import Grid
+import Util
 
 import Prelude hiding (id, (.))
+import Control.Applicative
 import Control.Monad
 import Data.Coerce
 import Data.Map (Map)
@@ -15,11 +17,14 @@ import Data.Function hiding ((.))
 import Debug.Trace
 --------------------------------------------------------------------------------
 
+data NodeEditCmd = NodeDrag | NodeDelete
+  deriving (Eq, Show)
+
 data NodesInput id = NodesInput
-  { cursor   :: Vec World
-  , dragging :: Bool
-  , placeNew :: Maybe id
-  }
+  { cursor      :: Vec World
+  , nodeEditCmd :: Maybe NodeEditCmd
+  , placeNew    :: Maybe id
+  } deriving Show
 
 -- pillar    :: Pillar   -> ((Vec World, Bool) ~> (Pillar             , Picture))
 -- pillars   :: [Pillar] -> (NodesInput        ~> (Map PillarID Pillar, Picture))
@@ -32,22 +37,30 @@ data State id = State { vectors     :: Map id (Vec World)
                       -- | The id of the currently highlighted node (if any), as well as the distance to the cursor when we started dragging.
                       }
 
-nodes :: forall id. Ord id => Double -> Map id (Vec World) -> (NodesInput id ~> (Map id (Vec World), Maybe id))
-nodes radius init = ((,) <$> vectors <*> fmap fst . highlighted) <$> stateful' (State init Nothing) step
+nodes :: forall id. (Ord id, Show id)
+      => Double
+      -> Map id (Vec World)
+      -> (NodesInput id ~> (Map id (Vec World), Maybe id))
+nodes radius init
+  = ((,) <$> vectors <*> fmap fst . highlighted) <$> stateful' (State init Nothing) step
   where
     step :: NodesInput id -> State id -> State id
 
     -- We are neither dragging nor inserting. Only update the
     -- "currently highlighted node".
-    step (NodesInput cursor False Nothing) (State vecs _)
+    step (NodesInput cursor Nothing Nothing) (State vecs _)
       = State vecs (highlight cursor vecs)
 
     -- We are dragging a node: the `dragging` input is True and a node
     -- is currently highlighted.
-    step (NodesInput cursor True Nothing) (State vecs (Just (id, offset)))
+    step (NodesInput cursor (Just NodeDrag) Nothing) (State vecs (Just (id, offset)))
       = State (Map.insert id (cursor ^+^ offset) vecs) (Just (id, offset))
 -- offset = pos - cursor
 -- pos = cursor + offset
+
+    -- Delete currently highlighted node.
+    step (NodesInput cursor (Just NodeDelete) Nothing) (State vecs (Just (id, _)))
+      = State (Map.delete id vecs) Nothing
 
     -- Place a new node.
     step (NodesInput cursor _ (Just newId)) (State vecs _)
@@ -64,11 +77,12 @@ nodes radius init = ((,) <$> vectors <*> fmap fst . highlighted) <$> stateful' (
                                        [(id, pos, pos <-> cursor) | (id,pos) <- Map.toList vecMap ]
                     in guard (dst <= radius) >> return (id, pos ^-^ cursor)
 
-nodesInput :: [id] -> ((Vec World, Bool, Bool) ~> NodesInput id)
-nodesInput ids = proc (cursor, draggingKeyDown, placeNewKeyDown) -> do
+nodesInput :: [id] -> ((Vec World, Bool, Bool, Bool) ~> NodesInput id)
+nodesInput ids = proc (cursor, draggingKeyDown, deleteKeyDown, placeNewKeyDown) -> do
   placeNew <- risingEdge -< placeNewKeyDown
   newIdEvent <- snack ids -< placeNew
-  returnA -< NodesInput cursor draggingKeyDown newIdEvent
+  let nodeEditCmd = toMaybe deleteKeyDown NodeDelete <|> toMaybe draggingKeyDown NodeDrag
+  returnA -< NodesInput cursor nodeEditCmd newIdEvent
 
       
 -- nodes :: Coercible Int id

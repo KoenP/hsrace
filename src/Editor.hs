@@ -58,7 +58,10 @@ editorSF (TrackSaveData waypoints0 pillars0, trackFilePath) = proc input -> do
   let waypointIsHighlighted = False -- TODO
 
   (pillars, pillarsPic) <- pillars pillars0
-    -< (cursor, dragging && not waypointIsHighlighted, keyTriggered Space input)
+    -< (cursor,
+        dragging && not waypointIsHighlighted,
+        keyTriggered EditorDelete input,
+        keyTriggered Space input)
 
   -- Save current track, if requested.
   let saveKeyTriggered = keyTriggered EditorSave input

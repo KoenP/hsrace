@@ -112,6 +112,9 @@ sumV = foldl (^+^) zeroVec
 toTup :: Fractional a => Vec w -> (a,a)
 toTup (Vec x y) = (realToFrac x, realToFrac y)
 
+toTupIntegral :: Integral a => Vec w -> (a,a)
+toTupIntegral (Vec x y) = (round x, round y)
+
 fromTup :: Real a => (a,a) -> Vec w
 fromTup (x,y) = Vec (realToFrac x) (realToFrac y)
 

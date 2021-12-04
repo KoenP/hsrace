@@ -66,6 +66,9 @@ updateSF dt input (_, SF sf) = return (out, sf')
 timeDelta :: () ~> Double
 timeDelta = SF $ \(dt,_) -> (dt, timeDelta)
 
+sfTrace :: Show a => a ~> a
+sfTrace = arr (\a -> traceShow a a)
+
 -- State
 --------
 delay :: a -> (a ~> a)
@@ -113,6 +116,9 @@ integralFrom v0 = stateful v0 step
 
 integral :: VectorSpace v Time => v ~> v
 integral = integralFrom zeroVec
+
+timePassed :: () ~> Time
+timePassed = constant 1 >>> integral
 
 clampedIntegralFrom :: (Vec w,Vec w) -> Vec w -> (Vec w ~> Vec w)
 clampedIntegralFrom bounds v0 = stateful v0 step

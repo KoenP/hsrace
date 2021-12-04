@@ -16,7 +16,7 @@ import Data.Maybe
 import qualified Data.Bifunctor as Bifunctor
 --------------------------------------------------------------------------------
 
-newtype PillarID = PillarID Int deriving (Eq, Ord)
+newtype PillarID = PillarID Int deriving (Eq, Ord, Show)
 
 gridCellSize = pillarRadius * 4
 
@@ -35,7 +35,7 @@ gridCellSize = pillarRadius * 4
 --       let event = sample (not dragging) (notDraggingMode pos)
 --       returnA -< (event, (pos, renderPillar True pos))
 
-pillars :: [Pillar] -> (Vec World, Bool, Bool) ~> ([Pillar], Picture)
+pillars :: [Pillar] -> (Vec World, Bool, Bool, Bool) ~> ([Pillar], Picture)
 pillars pillars0 =
   let
     pillarMap0 = Map.fromList (map PillarID [0..] `zip` pillars0)
