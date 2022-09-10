@@ -5,8 +5,14 @@ import GHC.Generics
 -- 0 rad points upwards
 -- rotation is clockwise
 
-newtype Radians a = Radians { _unRadians :: a} deriving (Show, Eq, Ord, Functor, Generic)
-newtype Degrees a = Degrees { _unDegrees :: a} deriving (Show, Eq, Ord, Functor, Generic)
+newtype Radians a = Radians { _unRadians :: a } deriving (Show, Eq, Ord)
+newtype Degrees a = Degrees { _unDegrees :: a } deriving (Show, Eq, Ord)
+  
+instance Functor Degrees where
+  fmap f (Degrees x) = Degrees (f x)
+
+instance Functor Radians where
+  fmap f (Radians x) = Radians (f x)
 
 instance Applicative Radians where
   pure                        = Radians

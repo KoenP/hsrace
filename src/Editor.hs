@@ -41,9 +41,10 @@ editor' edSF switchToF = Mode $ proc input -> do
   let (_, road, roadPic) = readCache cache
   let roadCheck = checkOnRoad road
   let pic = roadPic
+  let checkpoints = undefined
   changeMode_ <- sampleOnRisingEdge
     -< ( keyDown ChangeMode input
-       , switchToF (editor' edSF' switchToF) (GameTrack roadCheck pillars pic)
+       , switchToF (editor' edSF' switchToF) (GameTrack roadCheck pillars pic checkpoints)
        )
   returnA -< (changeMode_, out)
 

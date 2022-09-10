@@ -20,6 +20,7 @@ executable hsrace2
                        Track.Road,
                        Track.Polygon,
                        Track.CollisionGrid,
+                       Track.CheckPoints,
                        Track.Render,
                        Track.Bezier,
                        Track.Types,
@@ -34,7 +35,9 @@ executable hsrace2
                        Editor.Cache,
                        Editor.Nodes,
                        Input,
+                       Overlay,
                        Game,
+                       Game.Lap,
                        Game.Render,
                        Game.Types,
                        Util,
@@ -60,7 +63,7 @@ executable hsrace2
                        GADTs,
                        DerivingVia,
                        DerivingStrategies
-  ghc-options:         -threaded -O
+  ghc-options:         -threaded -O2
   build-depends:       base >= 4.7 && < 5,
                        gloss,
                        ConfigFile,

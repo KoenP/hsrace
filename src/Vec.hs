@@ -32,6 +32,8 @@ module Vec where
 
 import Angle
 
+import Control.Monad
+import Data.Functor
 import Data.List
 import Data.Coerce
 -- import VectorSpace ( (^*), VectorSpace(..) )
@@ -154,6 +156,8 @@ rotVec (Radians theta) (Vec x y) = Vec
 vecAngle :: Vec w -> Angle
 vecAngle (Vec x y) = Radians (pi/2 - atan2 y x)
 
+-- | `lerp v1 v2 t` interpolates linearly between vectors `v1` and
+--   `v2` for `t` ranging between 0 and 1.
 lerp :: VectorSpace v a => v -> v -> a -> v
 lerp v1 v2 = let delta = v2 ^-^ v1
              in \t -> v1 ^+^ t *^ delta
@@ -260,3 +264,16 @@ snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
 
 fromPolar :: Double -> Angle -> Vec w
 fromPolar magnitude theta = magnitude *^ unitvecFromAngle theta
+
+-- | Finds the unique intersection of two lines (each defined by two
+--   distinct points), if it exists.
+lineLineIntersection :: (Vec w, Vec w) -> (Vec w, Vec w) -> Maybe (Vec w)
+lineLineIntersection (Vec x1 y1, Vec x2 y2) (Vec x3 y3, Vec x4 y4)
+  = guard (denom /= 0) $> Vec px py
+  where
+    -- This denominator should be 0 if and only if the lines are parallel.
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    da    = x1*y2 - y1*x2
+    db    = x3*y4 - y3*x4
+    px    = da*(x3-x4) - (x1-x2)*db / denom
+    py    = da*(y3-y4) - (y1-y2)*db / denom

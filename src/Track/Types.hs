@@ -42,6 +42,7 @@ data GameTrack = GameTrack
   { _gt_onRoad :: Vec World -> Bool
   , _gt_pillars :: [Pillar]
   , _gt_pic :: Picture
+  , _gt_checkpoints :: [Vec World -> Bool]
   }
 
 -- | The data needed to reconstruct the track.

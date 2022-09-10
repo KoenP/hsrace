@@ -24,8 +24,8 @@ import Control.Applicative
 --------------------------------------------------------------------------------
 
 k_acceleration, k_drag, k_hookSpeed :: Double
-k_acceleration = 0.2
-k_drag         = 0.0005
+k_acceleration = 0.05 -- 0.2
+k_drag         = 0 -- 0.0005
 
 k_dragOffroad  = 0.1
 k_hookSpeed    = 4000
@@ -80,7 +80,7 @@ velocitySF = stateful (zeroVec, Nothing) step
 
 -- | Main game loop.
 game :: Game
-game switchTo (GameTrack onRoad pillars trackPic) =
+game switchTo (GameTrack onRoad pillars trackPic checkpoints) =
   Mode $ proc input -> do
     -- Switch to editor mode.
     changeMode_ <- changeMode switchTo -< input
@@ -111,9 +111,10 @@ game switchTo (GameTrack onRoad pillars trackPic) =
       -- Calculate viewport and cursor world position.
       avgSpeed <- averageRecentHistory 120 -< norm velocity
       let
-        zoom     = clamp (0.2,1) $ lerp 1 0.2 (avgSpeed / 27)
-        viewPort = ViewPort position 0 zoom
-        cursorWorldPos = windowCoordsToWorldCoords viewPort cursorPos
+        (zoomMin, zoomMax) = (0.05, 0.5) -- (0.2, 1)
+        zoom               = clamp (zoomMin, zoomMax) $ lerp zoomMax zoomMin (avgSpeed / 27)
+        viewPort           = ViewPort position 0 zoom
+        cursorWorldPos     = windowCoordsToWorldCoords viewPort cursorPos
 
     timePassed_ <- timePassed -< ()
     let overlay = fromWindowTop (_input_windowSize input) 70
