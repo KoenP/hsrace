@@ -1,4 +1,6 @@
 {-# options_ghc -Wno-orphans #-}
+{-# language UndecidableInstances #-}
+{-# language OverlappingInstances #-}
 
 module Vec where
 
@@ -40,7 +42,6 @@ import Data.Coerce
 --------------------------------------------------------------------------------
 
 -- Phantom type variable `w` keeps track of the coordinate system.
--- TODO: make it a newtype.
 -- type Vec w = V2 Double
 data Vec w = Vec { _x :: !Double , _y :: !Double }
   deriving (Eq, Ord, Show, Read)
@@ -50,18 +51,30 @@ infixl 6 ^-^
 infix 7 ^*
 infix 7 *^
 
-class VectorSpace v a | v -> a where
+-- class VS v where
+--   type Scalar v :: *
+--   --type family Scalar v
+--   scale :: Scalar v -> v -> v
+-- 
+-- instance VS (Vec w) where
+--   type Scalar (Vec w) = Double
+--   --type instance Scalar (Vec w) = Double
+--   scale a (Vec x y) = Vec (a*x) (a*y)
+                      
+class VectorSpace v where
+  type Scalar v
   zeroVec   :: v
   (^+^)     :: v -> v -> v
   (^-^)     :: v -> v -> v
-  (*^)      :: a -> v -> v
-  (^/)      :: v -> a -> v
+  (*^)      :: Scalar v -> v -> v
+  (^/)      :: v -> Scalar v -> v
   neg       :: v -> v
-  dot       :: v -> v -> a
-  norm      :: v -> a
+  dot       :: v -> v -> Scalar v
+  norm      :: v -> Scalar v
   normalize :: v -> v
 
-instance VectorSpace (Vec w) Double where
+instance VectorSpace (Vec w) where
+  type Scalar (Vec w)       = Double
   zeroVec                   = Vec 0 0
   (^+^)                     = zipWithVec (+)
   (^-^)                     = zipWithVec (-)
@@ -72,7 +85,8 @@ instance VectorSpace (Vec w) Double where
   norm (Vec x y)            = sqrt (x*x + y*y)
   normalize v               = let norm_v = norm v
                               in if nearZero norm_v then zeroVec else  v ^/ norm_v
-instance VectorSpace Int Int where
+instance VectorSpace Int where
+  type Scalar Int = Int
   zeroVec   = 0
   (^+^)     = (+)
   (^-^)     = (-)
@@ -83,7 +97,8 @@ instance VectorSpace Int Int where
   norm      = id
   normalize = const 1
 
-instance VectorSpace Double Double where
+instance VectorSpace Double where
+  type Scalar Double = Double
   zeroVec   = 0
   (^+^)     = (+)
   (^-^)     = (-)
@@ -94,7 +109,8 @@ instance VectorSpace Double Double where
   norm      = id
   normalize = const 1
 
-instance Fractional a => VectorSpace (Radians a) a where
+instance Fractional a => VectorSpace (Radians a) where
+  type Scalar (Radians a) = a
   zeroVec            = 0
   (^+^)              = (+)
   (^-^)              = (-)
@@ -105,7 +121,7 @@ instance Fractional a => VectorSpace (Radians a) a where
   norm               = coerce
   normalize          = const 1
 
-(^*) :: VectorSpace v a => v -> a -> v
+(^*) :: VectorSpace v => v -> Scalar v -> v
 (^*) = flip (*^)
 
 sumV :: Traversable t => t (Vec w) -> Vec w
@@ -158,7 +174,7 @@ vecAngle (Vec x y) = Radians (pi/2 - atan2 y x)
 
 -- | `lerp v1 v2 t` interpolates linearly between vectors `v1` and
 --   `v2` for `t` ranging between 0 and 1.
-lerp :: VectorSpace v a => v -> v -> a -> v
+lerp :: VectorSpace v => v -> v -> Scalar v -> v
 lerp v1 v2 = let delta = v2 ^-^ v1
              in \t -> v1 ^+^ t *^ delta
 

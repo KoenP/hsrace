@@ -10,6 +10,7 @@ import Util
 
 import Prelude hiding ((.), id)
 import Control.Category
+import Control.Applicative
 import Control.Arrow
 import Debug.Trace
 import Data.Bool
@@ -101,24 +102,48 @@ stateWithReset a0 update = SF sf
 risingEdge :: Bool ~> Bool
 risingEdge = (&&) <$> fmap not (delay False) <*> id
 
-cumsumFrom :: VectorSpace v a => v -> (v ~> v)
+cumsumFrom :: VectorSpace v => v -> (v ~> v)
 cumsumFrom v0 = stateful v0 (const (^+^))
 
-cumsum :: VectorSpace v a => (v ~> v)
+cumsum :: VectorSpace v => (v ~> v)
 cumsum = cumsumFrom zeroVec
 
 clock :: () ~> Double
 clock = timeDelta >>> cumsum
+        
+--------------------------------------------------------------------------------- Integration
 
-integralFrom :: VectorSpace v Time => v -> v ~> v
+newtype PerSecond a = PerSecond { unPerSecond :: a }
+  deriving Functor
+           
+instance Applicative PerSecond where
+  pure                        = PerSecond 
+  PerSecond f <*> PerSecond x = PerSecond (f x)
+           
+instance VectorSpace a => VectorSpace (PerSecond a) where 
+  type instance Scalar (PerSecond a) = Scalar a
+  zeroVec                       = PerSecond zeroVec
+  (^+^)                         = liftA2 (^+^)
+  (^-^)                         = liftA2 (^-^)
+  a *^ v                        = fmap (a *^) v
+  v ^/ a                        = fmap (^/ a) v
+  neg                           = fmap neg
+  PerSecond u `dot` PerSecond v = u `dot` v
+  norm                          = unPerSecond . fmap norm
+  normalize                     = fmap normalize
+ 
+frameDelta :: (VectorSpace v, Scalar v ~ Time) => PerSecond v -> Time -> v
+frameDelta (PerSecond v) dt = v ^* dt
+           
+integralFrom :: (VectorSpace v, Scalar v ~ Time) => v -> PerSecond v ~> v
 integralFrom v0 = stateful v0 step
-  where step dt v acc = acc ^+^ dt*^v
+  where step dt v acc = acc ^+^ frameDelta v dt
 
-integral :: VectorSpace v Time => v ~> v
+integral :: (VectorSpace v, Scalar v ~ Time) => PerSecond v ~> v
 integral = integralFrom zeroVec
 
 timePassed :: () ~> Time
-timePassed = constant 1 >>> integral
+timePassed = constant (PerSecond 1) >>> integral
 
 clampedIntegralFrom :: (Vec w,Vec w) -> Vec w -> (Vec w ~> Vec w)
 clampedIntegralFrom bounds v0 = stateful v0 step
@@ -127,7 +152,7 @@ clampedIntegralFrom bounds v0 = stateful v0 step
 recentHistory :: Int -> (a ~> [a])
 recentHistory nFrames = stateful [] $ \_ a as -> take nFrames (a:as)
 
-averageRecentHistory :: (VectorSpace a v, Fractional a) => Int -> (a ~> a)
+averageRecentHistory :: (Fractional a, VectorSpace a) => Int -> (a ~> a)
 averageRecentHistory nFrames = avg <$> recentHistory nFrames
   where avg [] = zeroVec
         avg l  = sum l / fromIntegral (length l)
@@ -136,7 +161,7 @@ recentHistoryByTime :: Time -> Time -> (a ~> [a])
 recentHistoryByTime frameInterval historyDuration
   = recentHistory (ceiling $ historyDuration / frameInterval)
 
-lerpSF :: VectorSpace Double v => Double -> Vec w -> Vec w -> (() ~> Vec w)
+lerpSF :: Double -> Vec w -> Vec w -> (() ~> Vec w)
 lerpSF time begin end = lerping `untilNothing` constant end
   where
     lerping = proc _ -> do

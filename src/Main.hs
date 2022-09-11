@@ -2,25 +2,17 @@ module Main where
 
 --------------------------------------------------------------------------------
 import Track
-import Track.Bezier
-import Editor.Waypoint
-import Editor.TrackState
 import Input
 import Game
 import Editor
-import Editor.Cache
 import SF
 import Vec
 import Types
-import Util
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
 
 import Prelude hiding ((.), id)
-import Control.Exception
-import Text.Read
-import Data.Maybe
 import System.Environment
 import Debug.Trace
 --------------------------------------------------------------------------------
@@ -62,7 +54,7 @@ runSF sf
   = playIO
     (InWindow "hsrace test" (toTupIntegral windowSize) (800,600))
     black
-    120
+    60
     ([], emptyInput, (Output blank Nothing, sf))
     (\(_,_,(Output pic _,_)) -> return pic)
     (\e w -> return (registerEvent e w))
