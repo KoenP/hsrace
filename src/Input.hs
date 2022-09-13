@@ -22,7 +22,7 @@ data Dir = DirUp | DirDown | DirLeft | DirRight
 data GameKey
   = Accelerating | Dir Dir | ChangeMode | LaunchHook
   | EditorAdjust | EditorCommit | EditorSave | EditorNextSubMode
-  | EditorClear | EditorDelete
+  | EditorClear | EditorDelete | EditorCloseLoop
   | ZoomIn | ZoomOut
   | LMB | RMB | Space
   deriving (Eq, Ord, Show, Read)
@@ -80,6 +80,7 @@ constructInput (Input down _ cursorPos _) events
     lookupKey (Char 'm')                = [ChangeMode]
     lookupKey (Char 'z')                = [EditorSave]
     lookupKey (Char 'c')                = [EditorClear]
+    lookupKey (Char 'l')                = [EditorCloseLoop]
     lookupKey _                         = []
 
     insertAll :: Ord a => [a] -> Set a -> Set a

@@ -72,8 +72,10 @@ roadCollisionGrid road
   , ix <- quad |>
       quadBoundingBox >>> bimap' collisionGridCoords >>> uncurry coordRange
   ]
+
 quadBoundingBox :: RoadQuad -> (Vec World, Vec World)
-quadBoundingBox (vx:vxs)= foldl' minmax (vx,vx) vxs
+quadBoundingBox []       = error "quadBoundingBox: RoadQuad should not be empty"
+quadBoundingBox (vx:vxs) = foldl' minmax (vx,vx) vxs
   where minmax (Vec xl yl, Vec xh yh) (Vec x y)
           = (Vec (min xl x) (min yl y), Vec (max xh x) (max yh y))
 

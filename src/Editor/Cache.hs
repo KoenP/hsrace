@@ -149,15 +149,23 @@ waypointCache cache0 = runMode (notDraggingMode cache0)
          ]
 
 -- | Perform actions that change the number of waypoints (insertions, deletions, appends, ...).
-performCardinalityAction :: WaypointsAction -> Maybe (WaypointID, WaypointComponent) -> Vec World -> Cache -> Maybe Cache
-performCardinalityAction PlaceNewWaypoint Nothing          cursor old = Just $ appendWaypoint cursor old
-performCardinalityAction PlaceNewWaypoint (Just (id,_))    _      old = Just $ insertWaypointBefore id old
-
+performCardinalityAction :: WaypointsAction
+                         -> Maybe (WaypointID, WaypointComponent)
+                         -> Vec World
+                         -> Cache
+                         -> Maybe Cache
+performCardinalityAction PlaceNewWaypoint Nothing          cursor old
+  = Just $ appendWaypoint cursor old
+performCardinalityAction PlaceNewWaypoint (Just (id,_))    _      old
+  = Just $ insertWaypointBefore id old
 performCardinalityAction DeleteWaypoint   maybeHighlighted _      old = do
   (id, component) <- maybeHighlighted
   guard (component == Anchor)
   return (deleteWaypoint id old)
-performCardinalityAction _                _                _      _   = Nothing
+performCardinalityAction CloseLoop        _                _      old
+  = closeLoop old
+performCardinalityAction _                _                _      _  
+  = Nothing
  
 ----------------------------------------
 -- Update cache.
@@ -201,11 +209,17 @@ insertWaypointBefore idOfNext old = fromMaybe old $ do
   let controlPoints = (zeroVec, zeroVec) -- (20 *^ normalize (neg (curveDeriv 0.5)), 20 *^ normalize (curveDeriv 0.5))
   let wp            = Waypoint anchor controlPoints ((width wpPrev + width wpNext) / 2)
   return $ refreshWaypoint idOfNext (writeWaypoint id wp old)
-
+         
 
 refreshWaypoint :: WaypointID -> Cache -> Cache
 refreshWaypoint id old | Just (wp,_,_) <- id `Map.lookup` old = writeWaypoint id wp old
                        | otherwise                           = error "tried to refresh nonexistant waypoint"
+                                                               
+closeLoop :: Cache -> Maybe Cache
+closeLoop old = do
+  (_    , (wp1,_,_)) <- Map.lookupMin old
+  (maxID, _        ) <- lookupLastWaypoint old
+  return $ writeWaypoint (nextWaypointID maxID) wp1 old
     
 -- | Insert or overwrite waypoint with the given ID, updating the
 --   cached road and picture *for that waypoint only*.
@@ -227,7 +241,7 @@ mkRoadSegment wp1 wp2
 readCache :: Cache -> ([Waypoint], Road, Picture)
 readCache cache = let (wps, segs, pics) = unzip3 (Map.elems cache)
                   in (wps, concat segs, pictures pics)
-      
+                     
 cacheToGrid :: Cache -> Grid World (WaypointID, WaypointComponent)
 cacheToGrid cache = mkGrid 100
   [ ((id, componentID), pos)

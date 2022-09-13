@@ -13,6 +13,7 @@ import Graphics.Gloss
 
 import Prelude hiding ((.))
 import Data.List
+import System.Random
 import Debug.Trace
 --------------------------------------------------------------------------------
 
@@ -23,6 +24,15 @@ data RenderData = RenderData
   , _rd_accelerating :: Bool
   , _rd_hook         :: Hook
   }
+                
+stars :: Picture
+stars = color white $ pictures $ take nStars
+        $ map (\pos -> translatePic pos (circle 1)) positions
+  where
+    positions = uncurry (zipWith Vec) (uninterleave noise)
+    noise = randomRs (-2000,2000) $ mkStdGen 5846735684
+    nStars = 500
+    
 
 render :: [Vec World] -> Picture -> (RenderData ~> Picture)
 render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook) -> do
@@ -37,7 +47,7 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook) -
   let hookPic = renderHook pos hook 
 
   returnA -< pictures
-    $ map (applyViewPort viewPort)
+    $ stars : map (applyViewPort viewPort)
       [trackPic, pillarsPic, tracePic, thrusterPic, hookPic, playerPic]
 
 --------------------------------------------------------------------------------
@@ -45,7 +55,7 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook) -
 
 renderPlayer :: (Vec World, Angle, Bool) ~> (Picture, Picture)
 renderPlayer = proc (pos, heading, thrusterOn) -> do
-  let triangle = map ((^+^ pos) . rotVec heading) (isoscelesTriangle 14 23)
+  let triangle = map ((^+^ pos) . rotVec heading) (isoscelesTriangle 28 46)
   trace <- recentHistory 10 -< triangle
   let
     -- TODO inefficient
@@ -73,8 +83,8 @@ isoscelesTriangle base height = [ Vec (-base/2) (-height/3)
 thrusterAnimation :: (Vec World, Angle, Bool) ~> Picture
 thrusterAnimation =
   let
-    frames = map (color yellow . translatePic (Vec 0 12) . polygonPic)
-             [isoscelesTriangle 5 5, isoscelesTriangle 7 15]
+    frames = map (color yellow . translatePic (Vec 0 24) . polygonPic)
+             [isoscelesTriangle 10 10, isoscelesTriangle 14 30]
   in
     proc (pos, rotation, thrusterOn) -> do
       pic <- slideShow 0.05 frames -< ()

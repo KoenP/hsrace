@@ -1,6 +1,4 @@
 {-# options_ghc -Wno-orphans #-}
-{-# language UndecidableInstances #-}
-{-# language OverlappingInstances #-}
 
 module Vec where
 
@@ -27,11 +25,6 @@ module Vec where
 --            ) where
 
 --------------------------------------------------------------------------------
--- import Linear (V2(..))
--- import qualified Linear as L
--- import qualified Linear.Affine as LA
--- import qualified Linear.Metric as LM
-
 import Angle
 
 import Control.Monad
@@ -42,7 +35,6 @@ import Data.Coerce
 --------------------------------------------------------------------------------
 
 -- Phantom type variable `w` keeps track of the coordinate system.
--- type Vec w = V2 Double
 data Vec w = Vec { _x :: !Double , _y :: !Double }
   deriving (Eq, Ord, Show, Read)
 
@@ -85,17 +77,17 @@ instance VectorSpace (Vec w) where
   norm (Vec x y)            = sqrt (x*x + y*y)
   normalize v               = let norm_v = norm v
                               in if nearZero norm_v then zeroVec else  v ^/ norm_v
-instance VectorSpace Int where
-  type Scalar Int = Int
-  zeroVec   = 0
-  (^+^)     = (+)
-  (^-^)     = (-)
-  (*^)      = (*)
-  (^/)      = div
-  neg       = negate
-  dot       = (*)
-  norm      = id
-  normalize = const 1
+-- instance VectorSpace Int where
+--   type Scalar Int = Int
+--   zeroVec   = 0
+--   (^+^)     = (+)
+--   (^-^)     = (-)
+--   (*^)      = (*)
+--   (^/)      = div
+--   neg       = negate
+--   dot       = (*)
+--   norm      = id
+--   normalize = const 1
 
 instance VectorSpace Double where
   type Scalar Double = Double
@@ -271,12 +263,12 @@ boundingBox (v:vs) = foldl'
 snapAwayFrom :: Vec w -> Vec w -> Vec w
 snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
   where
-    newX | x < x'    = realToFrac $ floor x
-         | x > x'    = realToFrac $ ceiling x
-         | otherwise = realToFrac $ round x
-    newY | y < y'    = realToFrac $ floor y
-         | y > y'    = realToFrac $ ceiling y
-         | otherwise = realToFrac $ round y
+    newX | x < x'    = realToFrac (floor x   :: Int)
+         | x > x'    = realToFrac (ceiling x :: Int)
+         | otherwise = realToFrac (round x   :: Int)
+    newY | y < y'    = realToFrac (floor y   :: Int)
+         | y > y'    = realToFrac (ceiling y :: Int)
+         | otherwise = realToFrac (round y   :: Int)
 
 fromPolar :: Double -> Angle -> Vec w
 fromPolar magnitude theta = magnitude *^ unitvecFromAngle theta
@@ -291,5 +283,5 @@ lineLineIntersection (Vec x1 y1, Vec x2 y2) (Vec x3 y3, Vec x4 y4)
     denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
     da    = x1*y2 - y1*x2
     db    = x3*y4 - y3*x4
-    px    = da*(x3-x4) - (x1-x2)*db / denom
-    py    = da*(y3-y4) - (y1-y2)*db / denom
+    px    = (da*(x3-x4) - (x1-x2)*db) / denom
+    py    = (da*(y3-y4) - (y1-y2)*db) / denom

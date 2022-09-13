@@ -49,12 +49,13 @@ readTrackSaveData = do
 -- 
 --   return (fromSaveData saveData, trackStateFromSaveData saveData)
 
+
 runSF :: (Input ~> Output) -> IO ()
 runSF sf
   = playIO
     (InWindow "hsrace test" (toTupIntegral windowSize) (800,600))
     black
-    60
+    90
     ([], emptyInput, (Output blank Nothing, sf))
     (\(_,_,(Output pic _,_)) -> return pic)
     (\e w -> return (registerEvent e w))

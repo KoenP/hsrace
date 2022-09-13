@@ -25,4 +25,4 @@ renderPoint col (Vec x y)
   = color col $ translate (realToFrac x) (realToFrac y) (circle 7)
 
 renderRoadSegment :: RoadSegment -> Picture
-renderRoadSegment = pictures . zipWith color (cycle [blue, dim blue]) . map polygonPic
+renderRoadSegment = pictures . map (color (dim blue)) . map polygonPic

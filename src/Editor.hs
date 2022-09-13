@@ -104,7 +104,8 @@ highlightedWaypoint = runMode notDraggingMode
 wpsInputs :: GUI -> Input -> (Vec World, WaypointsAction)
 wpsInputs gui input = (_gui_cursorWorldPos gui, action)
   where
-    action | keyTriggered RMB input          = PlaceNewWaypoint
-           | keyDown LMB input               = DragWaypoint
-           | keyTriggered EditorDelete input = DeleteWaypoint
-           | otherwise                       = NoWaypointAction
+    action | keyTriggered RMB input             = PlaceNewWaypoint
+           | keyDown LMB input                  = DragWaypoint
+           | keyTriggered EditorDelete input    = DeleteWaypoint
+           | keyTriggered EditorCloseLoop input = CloseLoop
+           | otherwise                          = NoWaypointAction

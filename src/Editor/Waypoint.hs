@@ -24,6 +24,7 @@ betweenWaypointIDs (WaypointID a) (WaypointID b) = WaypointID ((a + b) / 2)
 
 data WaypointsAction
   = NoWaypointAction | DragWaypoint | PlaceNewWaypoint | DeleteWaypoint
+  | CloseLoop
   deriving (Eq, Ord)
 
 defaultWaypointWidth :: Double

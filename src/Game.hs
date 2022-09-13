@@ -36,11 +36,13 @@ accelerationPS = PerSecond 500
 dragPS         = PerSecond 0
 hookSpeedPS    = PerSecond 4000
 
-hook :: [Pillar] -> (Vec World, Vec World, Bool) ~> Hook
-hook pillars = (\(x,y,z) -> (x,selectPillar y, z)) ^>> runMode noHookMode
-  where
-    selectPillar = selectedPillar pillars
 
+-- | Computes the behavior of the hook, based on a (static) list of
+-- pillars, and (dynamic) start position, currently selected pillar,
+-- and a boolean indicating whether the hook should be launched.
+hook :: [Pillar] -> (Vec World, Maybe (Vec World), Bool) ~> Hook
+hook pillars = runMode noHookMode
+  where
     noHookMode :: Mode (Vec World, Maybe (Vec World), Bool) Hook
     noHookMode = Mode $ arr $ \(startPos, goal, launchHook) ->
       let event = sample launchHook (hookTravellingMode startPos) <*> goal
@@ -61,8 +63,8 @@ hook pillars = (\(x,y,z) -> (x,selectPillar y, z)) ^>> runMode noHookMode
     hookAttachedMode pos = Mode $ arr $ \(_,_,keepAttached)
       -> (sample (not keepAttached) noHookMode, HookAttached pos)
   
-selectedPillar :: [Pillar] -> Vec World -> Maybe (Vec World)
-selectedPillar pillars =
+selectPillar :: [Pillar] -> Vec World -> Maybe (Vec World)
+selectPillar pillars =
   let cellSize = 400
       grid = mkGrid cellSize (repeat () `zip` pillars)
   in fmap fst <$> closestNearby grid 
@@ -121,8 +123,9 @@ game switchTo (GameTrack onRoad pillars trackPic checkpoints) =
       dPosition <- delay zeroVec -< position
       dVelocity <- delay zeroVec -< velocity
       dCursorWorldPos <- delay zeroVec -< cursorWorldPos
+      let selectedPillar = selectPillar pillars dCursorWorldPos
       hook      <- hook pillars
-        -< (dPosition, dCursorWorldPos, keyDown LaunchHook input) -- (input, dPosition, fromPolar k_hookSpeed rotation)
+        -< (dPosition, selectedPillar, keyDown LaunchHook input) -- (input, dPosition, fromPolar k_hookSpeed rotation)
       let dSpeed = norm dVelocity
       
       let dragFactor = 0 -- if onRoad dPosition then k_drag else k_dragOffroad

@@ -78,6 +78,10 @@ interleave :: [a] -> [a] -> [a]
 interleave (x:xs) (y:ys) = x : y : interleave xs ys
 interleave xs     []     = xs
 interleave []     ys     = ys
+                           
+uninterleave :: [a] -> ([a],[a])
+uninterleave (x:y:l) = let (xs,ys) = uninterleave l in (x:xs,y:ys)
+uninterleave l       = (l,[])
 
 mergeMaybes :: (Maybe a, Maybe b) -> Maybe (Either a b)
 mergeMaybes (Just a , _     ) = Just (Left a)

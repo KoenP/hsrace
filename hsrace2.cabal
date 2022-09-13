@@ -64,12 +64,12 @@ executable hsrace2
                        DerivingVia,
                        DerivingStrategies,
                        TypeFamilies
-  ghc-options:         -threaded -O2
+  ghc-options:         -threaded -O2 -rtsopts "-with-rtsopts=--nonmoving-gc -sgc.profile"
   build-depends:       base >= 4.7 && < 5,
                        gloss,
                        ConfigFile,
-                       linear,
                        lens,
                        vector,
                        containers,
-                       array
+                       array,
+                       random
