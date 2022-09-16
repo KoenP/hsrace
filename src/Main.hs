@@ -21,7 +21,7 @@ main :: IO ()
 main = do
   editorInit <- readTrackSaveData
   runSF $ runMode $ editor editorInit game
-
+        
 readTrackSaveData :: IO (TrackSaveData, FilePath)
 readTrackSaveData = do 
   args <- getArgs

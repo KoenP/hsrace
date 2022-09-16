@@ -2,25 +2,55 @@ module Game where
 
 --------------------------------------------------------------------------------
 import Vec
-import Angle
+    ( (<->),
+      clamp,
+      internalAngle,
+      lerp,
+      perp,
+      projectOnto,
+      rotVec,
+      vecAngle,
+      windowCoordsToWorldCoords,
+      Vec(Vec),
+      VectorSpace(norm, (^-^), zeroVec, normalize, (*^), (^+^)),
+      ViewPort(ViewPort),
+      World )
 import Input
-import Track
-import Track.CollisionGrid
-import Track.Polygon
+    ( changeMode,
+      keyDown,
+      GameKey(LaunchHook, Accelerating),
+      Input(_input_cursorPos, _input_windowSize) )
+import Track ( GameTrack(GameTrack), Pillar )
 import SF
-import Types
-import Util
-import Grid
-import Editor.Pillar
-import Overlay
+    ( Arrow(arr),
+      (^<<),
+      returnA,
+      Category((.)),
+      averageRecentHistory,
+      clock,
+      delay,
+      frameDelta,
+      integral,
+      runMode,
+      sample,
+      stateful,
+      timeDelta,
+      timePassed,
+      Mode(Mode),
+      PerSecond(..),
+      type (~>) )
+import Types ( Game, Output(Output) )
+import Util ( minutesSecondsCentiseconds, translatePic )
+import Grid ( closestNearby, mkGrid )
+import Overlay ( fromWindowLeft, fromWindowTop )
 import Game.Render ( render, RenderData(RenderData) )
-import Game.Types
+import Game.Types ( Hook(..) )
 
-import Graphics.Gloss
+import Graphics.Gloss ( white, color, pictures, scale, text )
 
 import Prelude hiding ((.), id)
-import Data.Maybe
-import Control.Applicative
+import Data.Maybe ( fromMaybe )
+import Control.Applicative ( Alternative((<|>)) )
 --------------------------------------------------------------------------------
 
 -- k_acceleration, k_drag, k_hookSpeed :: Double

@@ -34,7 +34,7 @@ import Data.Coerce
 -- import VectorSpace ( (^*), VectorSpace(..) )
 --------------------------------------------------------------------------------
 
--- Phantom type variable `w` keeps track of the coordinate system.
+-- | The phantom type variable `w` keeps track of the coordinate system.
 data Vec w = Vec { _x :: !Double , _y :: !Double }
   deriving (Eq, Ord, Show, Read)
 
@@ -273,10 +273,10 @@ snapAwayFrom (Vec x y) (Vec x' y') = Vec newX newY
 fromPolar :: Double -> Angle -> Vec w
 fromPolar magnitude theta = magnitude *^ unitvecFromAngle theta
 
--- | Finds the unique intersection of two lines (each defined by two
---   distinct points), if it exists.
-lineLineIntersection :: (Vec w, Vec w) -> (Vec w, Vec w) -> Maybe (Vec w)
-lineLineIntersection (Vec x1 y1, Vec x2 y2) (Vec x3 y3, Vec x4 y4)
+-- | Finds the unique intersection of two infinite straight lines
+--   (each defined by two distinct points), if it exists.
+lineIntersection :: (Vec w, Vec w) -> (Vec w, Vec w) -> Maybe (Vec w)
+lineIntersection (Vec x1 y1, Vec x2 y2) (Vec x3 y3, Vec x4 y4)
   = guard (denom /= 0) $> Vec px py
   where
     -- This denominator should be 0 if and only if the lines are parallel.
@@ -285,3 +285,11 @@ lineLineIntersection (Vec x1 y1, Vec x2 y2) (Vec x3 y3, Vec x4 y4)
     db    = x3*y4 - y3*x4
     px    = (da*(x3-x4) - (x1-x2)*db) / denom
     py    = (da*(y3-y4) - (y1-y2)*db) / denom
+
+-- | Finds the unique intersection of two line segments (each defined
+-- by their endpoints), if it exists.
+segmentIntersection :: (Vec w, Vec w) -> (Vec w, Vec w) -> Maybe (Vec w)
+segmentIntersection seg1@(u1,v1) seg2@(u2,v2) = do
+  isctn <- lineIntersection seg1 seg2
+  guard $ isctn `between` (u1,v1) && isctn `between` (u2,v2)
+  return isctn
