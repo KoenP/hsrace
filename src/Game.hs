@@ -37,11 +37,13 @@ import SF
       stateful',
       timeDelta,
       timePassed,
+      sampleOnChange,
+      updateOnJust,
       Mode(Mode),
       PerSecond(..),
       type (~>) )
 import Types ( Game, Output(Output) )
-import Util ( minutesSecondsCentiseconds, translatePic )
+import Util ( minutesSecondsCentiseconds, translatePic, traceResult )
 import Grid ( closestNearby, mkGrid )
 import Overlay ( fromWindowLeft, fromWindowTop )
 import Game.Render ( render, RenderData(RenderData) )
@@ -131,6 +133,9 @@ game switchTo (GameTrack onRoad pillars trackPic crossesLapBoundary) =
 
     -- Orient the player.
     let cursorPos = _input_cursorPos input
+
+    -- Keep track of time.
+    timePassed_ <- timePassed -< ()
       
     -- Position and heading.
     let accelerating = keyDown Accelerating input
@@ -166,13 +171,16 @@ game switchTo (GameTrack onRoad pillars trackPic crossesLapBoundary) =
     currentLap :: Int
       <- stateful' 0 (\segment curlap -> curlap + crossesLapBoundary segment )
       -< (dPosition, position)
+    highestLapSoFar <- stateful' 0 max -< currentLap
+    newLap <- sampleOnChange 0 -< highestLapSoFar
+    -- absTimeLastLapCompleted <-  
+    lapTimes <- updateOnJust [] (\lts newTime -> traceResult (lts ++ [newTime])) -< timePassed_ <$ newLap
 
-    timePassed_ <- timePassed -< ()
     let 
       clockPic = translatePic (Vec (-20) 0)
                  $ text (minutesSecondsCentiseconds timePassed_)
       wsize    = _input_windowSize input
-      lapsPic  = fromWindowLeft wsize 10 (text (show currentLap))
+      lapsPic  = fromWindowLeft wsize 10 (text (show highestLapSoFar))
       overlay  = fromWindowTop wsize 70 $ color white $ Graphics.Gloss.scale 0.5 0.5
                  $ pictures [clockPic, lapsPic]
                  

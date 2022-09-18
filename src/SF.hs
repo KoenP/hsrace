@@ -290,6 +290,11 @@ sample False _ = Nothing
 
 sampleOnRisingEdge :: (Bool,a) ~> Maybe a
 sampleOnRisingEdge = first risingEdge >>> arr2 sample
+                     
+sampleOnChange :: Eq a => a -> a ~> Maybe a
+sampleOnChange a0 = proc a -> do 
+  da <- delay a0 -< a 
+  sampleOnRisingEdge -< (da /= a, a)
 
 notYet :: Maybe a ~> Maybe a
 notYet = SF $ const (Nothing, id)
