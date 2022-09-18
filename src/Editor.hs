@@ -2,29 +2,40 @@ module Editor where
 
 --------------------------------------------------------------------------------
 import Input
-import Editor.Render
-import Editor.Pillar
-import Editor.GUI
+    ( keyDown,
+      keyTriggered,
+      GameKey(EditorCloseLoop, ChangeMode, Space, EditorSave, RMB, LMB,
+              EditorDelete),
+      Input )
+import Editor.Pillar ( pillars )
+import Editor.GUI ( gui, GUI(_gui_overlay, _gui_cursorWorldPos) )
+import Editor.Lap ( lapBoundary, crossesBoundary )
 import Editor.Waypoint
+    ( nodeRadius, WaypointID, WaypointsAction(..) )
 import Editor.Cache
-import Editor.Nodes
+    ( fromWaypoints, readCache, waypointCache, Cache )
 import Track
-import Track.Road
+    ( GameTrack(GameTrack),
+      Pillar,
+      TrackSaveData(TrackSaveData),
+      checkOnRoad )
 import SF
-import Vec
-import Types
-import Util
-import Grid
+    ( returnA,
+      inspect,
+      runMode,
+      sample,
+      sampleOnRisingEdge,
+      Mode(Mode),
+      type (~>) )
+import Vec ( (<->), Vec, World )
+import Types ( FileOutput(FileOutput), Game, Output(..), ProgMode )
+import Grid ( closestNearby, Grid )
 
-import Graphics.Gloss
+import Graphics.Gloss ( pictures )
 
 import Prelude hiding ((.), id)
-import Control.Monad
-import Data.Functor
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Maybe
-import Data.Tuple
+import Control.Monad ( guard )
+import Data.Maybe ( fromJust, isJust )
 --------------------------------------------------------------------------------
 
 -- type TrackEditCommand = (Maybe Waypoint, Maybe Pillar)
@@ -41,10 +52,15 @@ editor' edSF switchToF = Mode $ proc input -> do
   let (_, road, roadPic) = readCache cache
   let roadCheck = checkOnRoad road
   let pic = roadPic
-  let checkpoints = undefined
+  let lapBoundaryInfo = lapBoundary cache
+  let checkLapBoundary 
+        | Just lb <- lapBoundaryInfo = (`crossesBoundary` lb)
+        | otherwise                  = const 0
   changeMode_ <- sampleOnRisingEdge
     -< ( keyDown ChangeMode input
-       , switchToF (editor' edSF' switchToF) (GameTrack roadCheck pillars pic checkpoints)
+       , switchToF
+           (editor' edSF' switchToF)
+           (GameTrack roadCheck pillars pic checkLapBoundary)
        )
   returnA -< (changeMode_, out)
 

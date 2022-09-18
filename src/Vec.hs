@@ -25,12 +25,13 @@ module Vec where
 --            ) where
 
 --------------------------------------------------------------------------------
-import Angle
+import Angle ( rcos, rsin, Angle, Radians(Radians) )
 
-import Control.Monad
-import Data.Functor
-import Data.List
-import Data.Coerce
+import Control.Monad ( guard )
+import Data.Functor ( ($>) )
+import Data.List ( foldl' )
+import Data.Coerce ( coerce )
+import Data.Maybe ( isJust )
 -- import VectorSpace ( (^*), VectorSpace(..) )
 --------------------------------------------------------------------------------
 
@@ -233,10 +234,10 @@ windowCoordsToWorldCoords (ViewPort pos rot zoom) (Vec wx wy) =
   pos ^+^ ((1/zoom) *^ rotVec rot (Vec wx wy))
 
 -- | Check whether a position is inside the rectangle defined by
--- the two other vectors. TODO kind of a bad name
-between :: Vec w -> (Vec w, Vec w) -> Bool
-between (Vec x y) (Vec l b,Vec r t) = x >= l && x <= r && y >= b && y <= t
-
+-- the two other vectors.
+boxedInBy :: Vec w -> (Vec w, Vec w) -> Bool
+boxedInBy (Vec x y) (Vec l b,Vec r t) = x >= l && x <= r && y >= b && y <= t
+                                        
 -- | Measure the distance between two points in space.
 (<->) :: Vec w -> Vec w -> Double
 u <-> v = norm (v ^-^ u)
@@ -291,5 +292,8 @@ lineIntersection (Vec x1 y1, Vec x2 y2) (Vec x3 y3, Vec x4 y4)
 segmentIntersection :: (Vec w, Vec w) -> (Vec w, Vec w) -> Maybe (Vec w)
 segmentIntersection seg1@(u1,v1) seg2@(u2,v2) = do
   isctn <- lineIntersection seg1 seg2
-  guard $ isctn `between` (u1,v1) && isctn `between` (u2,v2)
+  guard $ isctn `boxedInBy` boundingBox [u1,v1] && isctn `boxedInBy` boundingBox [u2,v2]
   return isctn
+
+segmentsIntersect :: (Vec w, Vec w) -> (Vec w, Vec w) -> Bool
+segmentsIntersect seg1 seg2 = isJust (segmentIntersection seg1 seg2)

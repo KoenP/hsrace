@@ -1,7 +1,5 @@
 module Editor.Cache where
 
--- Data structure to avoid recomputing the whole road every frame.
-
 --------------------------------------------------------------------------------
 import SF
 import Track.Road
@@ -24,9 +22,14 @@ import Data.Map (Map)
 import Data.Tuple
 --------------------------------------------------------------------------------
 
--- | For each waypoint ID, we store the waypoint and the polygons and picture
---   for the piece of the road leading back to the previous waypoint.
+-- | Data structure to avoid recomputing the whole road every
+--   frame.For each waypoint ID, we store the waypoint and the
+--   polygons and picture for the piece of the road leading back to
+--   the previous waypoint.
 type Cache = Map WaypointID (Waypoint, Road, Picture)
+  
+-- | Data structure to support quick spatial lookup of waypoints and
+--   waypoint components.
 type CacheGrid = Grid World (WaypointID, WaypointComponent)
 
 ----------------------------------------

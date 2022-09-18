@@ -34,6 +34,7 @@ executable hsrace2
                        Editor.Pillar,
                        Editor.Cache,
                        Editor.Nodes,
+                       Editor.Lap,
                        Input,
                        Overlay,
                        Game,

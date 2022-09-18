@@ -30,10 +30,11 @@ import SF
       clock,
       delay,
       frameDelta,
-      integral,
+      integralFrom,
       runMode,
       sample,
       stateful,
+      stateful',
       timeDelta,
       timePassed,
       Mode(Mode),
@@ -121,20 +122,9 @@ velocitySF = stateful (PerSecond zeroVec, Nothing) step
             tether = spanTether dPos hook vel
         in (PerSecond (fromMaybe vel tether), tether)
            
-{-
-x0 = 0 m
-v0 = 10 m/s 
-a = 1 m/s/s 
-
-dt = 0.5 s
-
-v1 = v0 + a*dt
-x1 = x0 + v1*dt
--}
-
 -- | Main game loop.
 game :: Game
-game switchTo (GameTrack onRoad pillars trackPic checkpoints) =
+game switchTo (GameTrack onRoad pillars trackPic crossesLapBoundary) =
   Mode $ proc input -> do
     -- Switch to editor mode.
     changeMode_ <- changeMode switchTo -< input
@@ -161,7 +151,7 @@ game switchTo (GameTrack onRoad pillars trackPic checkpoints) =
       let dragFactor = 0 -- if onRoad dPosition then k_drag else k_dragOffroad
       let drag = (- dragFactor * dSpeed ** 2) *^ normalize dVelocity
       (velocity, _tether) <- velocitySF -< (dPosition, thrust ^+^ drag, hook)
-      position <- integral -< velocity
+      position <- integralFrom (Vec 0 30) -< velocity
 
       -- Calculate viewport and cursor world position.
       avgSpeed :: Double <- averageRecentHistory 120 -< norm velocity
@@ -171,16 +161,20 @@ game switchTo (GameTrack onRoad pillars trackPic checkpoints) =
         zoom               = clamp (zoomMin, zoomMax) $ lerp zoomMax zoomMin (avgSpeed / 500)
         viewPort           = ViewPort position 0 zoom
         cursorWorldPos     = windowCoordsToWorldCoords viewPort cursorPos
+                             
+    -- Keep track of which lap the player is on.
+    currentLap :: Int
+      <- stateful' 0 (\segment curlap -> curlap + crossesLapBoundary segment )
+      -< (dPosition, position)
 
     timePassed_ <- timePassed -< ()
-    fps <- (1/) ^<< timeDelta -< ()
     let 
       clockPic = translatePic (Vec (-20) 0)
                  $ text (minutesSecondsCentiseconds timePassed_)
       wsize    = _input_windowSize input
-      fpsPic   = fromWindowLeft wsize 10 (text (show (floor fps :: Int)))
+      lapsPic  = fromWindowLeft wsize 10 (text (show currentLap))
       overlay  = fromWindowTop wsize 70 $ color white $ Graphics.Gloss.scale 0.5 0.5
-                 $ pictures [clockPic, fpsPic]
+                 $ pictures [clockPic, lapsPic]
                  
     pic <- render pillars trackPic
       -< RenderData viewPort position rotation accelerating hook
