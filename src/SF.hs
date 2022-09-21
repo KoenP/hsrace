@@ -157,9 +157,13 @@ averageRecentHistory nFrames = avg <$> recentHistory nFrames
   where avg [] = zeroVec
         avg l  = sum l / fromIntegral (length l)
 
-recentHistoryByTime :: Time -> Time -> (a ~> [a])
-recentHistoryByTime frameInterval historyDuration
-  = recentHistory (ceiling $ historyDuration / frameInterval)
+recentHistoryByTime :: Time -> (a ~> [(a,Time)])
+recentHistoryByTime duration = fst ^<< stateful ([],0) f
+  where
+    f dt x (xts, t) = let t' = t+dt in (takeWhile (recent t') ((x,t'):xts), t')
+    recent t (_, tx) = tx > t - duration
+  
+--   = recentHistory (ceiling $ historyDuration / frameInterval)
 
 lerpSF :: Double -> Vec w -> Vec w -> (() ~> Vec w)
 lerpSF time begin end = lerping `untilNothing` constant end
