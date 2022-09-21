@@ -56,16 +56,61 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook) -
 renderPlayer :: (Vec World, Angle, Bool) ~> (Picture, Picture)
 renderPlayer = proc (pos, heading, thrusterOn) -> do
   let triangle = map ((^+^ pos) . rotVec heading) (isoscelesTriangle 28 46)
-  trace <- recentHistory 10 -< triangle
-  let
-    -- TODO inefficient
-    interpolatedTrace = map polygonPic $ concat
-                      $ zipWith (interpolatePolys 4) trace (safeTail trace)
-    (r,g,b,_)         = rgbaOfColor red
-    alphas            = map (\n -> 1 / fromIntegral n) [1..length interpolatedTrace]
-    colors            = [makeColor r g b a | a <- alphas]
-    tracePic          = pictures $ zipWith color colors interpolatedTrace
-  returnA -< (color red (polygonPic triangle), tracePic)
+  -- trace <- recentHistory 10 -< triangle
+  let playerPic = color red (polygonPic triangle)
+  tracePic <- renderPlayerTrace -< (pos, heading)
+  -- let
+  --   -- TODO inefficient
+  --   interpolatedTrace = map polygonPic $ concat
+  --                     $ zipWith (interpolatePolys 4) trace (safeTail trace)
+  --   (r,g,b,_)         = rgbaOfColor red
+  --   alphas            = map (\n -> 1 / fromIntegral n) [1..length interpolatedTrace]
+  --   colors            = [makeColor r g b a | a <- alphas]
+    -- tracePic          = pictures $ zipWith color colors interpolatedTrace
+  returnA -< (playerPic, tracePic)
+
+playerTriangle :: Vec World -> Angle -> Picture
+playerTriangle pos heading
+    = polygonPic
+    $ map ((^+^ pos) . rotVec heading) (isoscelesTriangle 28 46)
+
+traceDuration :: Double
+traceDuration = 3 -- seconds
+
+renderPlayerTrace :: (Vec World, Angle) ~> Picture
+renderPlayerTrace = proc player -> do
+  now <- timePassed -< ()
+  history <- recentHistoryByTime traceDuration -< player
+  returnA -< pictures $ map fade $ relativePast now history
+  where 
+    relativePast :: Time -> [(a,Time)] -> [(a,Time)]
+    relativePast now xts = [(x, now - t) | (x, t) <- xts]
+
+    fade :: ((Vec World, Angle), Time) -> Picture
+    fade ((pos, angle), t)
+      = color (makeColor 1 0 0 (realToFrac $ 0.2 - t / (traceDuration*2)))
+      $ playerTriangle pos angle
+        
+
+-- t = 0        -> 0.5
+-- t = duration -> 0
+-- 0.5 - ((duration - t) / duration)
+
+{-
+
+
+*
+ *
+  *
+   *
+
+x = 0 -> y = 0.5
+y = 0 -> x = 3
+
+rico = -0.5 / 3 = -1/6
+
+y = 0.5 - x/6
+-}
 
 interpolatePolys :: Int -> [Vec w] -> [Vec w] -> [[Vec w]]
 interpolatePolys n vs ws = transpose $ zipWith f vs ws
