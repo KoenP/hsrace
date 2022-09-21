@@ -173,8 +173,9 @@ game switchTo (GameTrack onRoad pillars trackPic crossesLapBoundary) =
       -< (dPosition, position)
     highestLapSoFar <- stateful' 0 max -< currentLap
     newLap <- sampleOnChange 0 -< highestLapSoFar
-    -- absTimeLastLapCompleted <-  
-    lapTimes <- updateOnJust [] (\lts newTime -> traceResult (lts ++ [newTime])) -< timePassed_ <$ newLap
+    lapTimes
+      <- updateOnJust [] (\lts newTime -> lts ++ [newTime])
+      -< timePassed_ <$ newLap
 
     let 
       clockPic = translatePic (Vec (-20) 0)
