@@ -43,6 +43,14 @@ circlePic radius = circle (realToFrac radius)
 
 circleSolidPic :: Double -> Picture
 circleSolidPic radius = circleSolid (realToFrac radius)
+                        
+-- maybeToPic :: (a -> Picture) -> Maybe a -> Picture
+-- maybeToPic render (Just a) = render a
+-- maybeToPic _      Nothing  = blank
+                             
+maybeToPic :: Maybe Picture -> Picture
+maybeToPic Nothing    = blank
+maybeToPic (Just pic) = pic
 
 applyViewPort :: ViewPort -> Picture -> Picture
 applyViewPort (ViewPort v rot zoom)

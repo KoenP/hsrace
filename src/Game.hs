@@ -46,7 +46,10 @@ import Types ( Game, Output(Output) )
 import Util ( minutesSecondsCentiseconds, translatePic, traceResult )
 import Grid ( closestNearby, mkGrid )
 import Overlay ( fromWindowLeft, fromWindowTop )
-import Game.Render ( render, RenderData(RenderData) )
+import Game.Render
+    ( render,
+      RenderData(RenderData, _rd_viewPort, _rd_playerPos, _rd_playerRot,
+                 _rd_accelerating, _rd_hook, _rd_selectedPillar) )
 import Game.Types ( Hook(..) )
 
 import Graphics.Gloss ( white, color, pictures, scale, text )
@@ -186,7 +189,14 @@ game switchTo (GameTrack onRoad pillars trackPic crossesLapBoundary) =
                  $ pictures [clockPic, lapsPic]
                  
     pic <- render pillars trackPic
-      -< RenderData viewPort position rotation accelerating hook
+      -< RenderData
+           { _rd_viewPort       = viewPort
+           , _rd_playerPos      = position
+           , _rd_playerRot      = rotation
+           , _rd_accelerating   = accelerating
+           , _rd_hook           = hook
+           , _rd_selectedPillar = selectedPillar
+           }
     
     returnA -<
       ( changeMode_

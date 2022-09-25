@@ -13,16 +13,18 @@ import Graphics.Gloss
 
 import Prelude hiding ((.))
 import Data.List
+import Data.Functor
 import System.Random
 import Debug.Trace
 --------------------------------------------------------------------------------
 
 data RenderData = RenderData
-  { _rd_viewPort     :: ViewPort
-  , _rd_playerPos    :: Vec World
-  , _rd_playerRot    :: Angle
-  , _rd_accelerating :: Bool
-  , _rd_hook         :: Hook
+  { _rd_viewPort       :: ViewPort
+  , _rd_playerPos      :: Vec World
+  , _rd_playerRot      :: Angle
+  , _rd_accelerating   :: Bool
+  , _rd_hook           :: Hook
+  , _rd_selectedPillar :: Maybe (Vec World)
   }
                 
 stars :: Picture
@@ -32,14 +34,29 @@ stars = color white $ pictures $ take nStars
     positions = uncurry (zipWith Vec) (uninterleave noise)
     noise = randomRs (-2000,2000) $ mkStdGen 5846735684
     nStars = 500
-    
+ 
+pillarHighlighter :: Picture   
+pillarHighlighter = color white $ pictures
+                    [arcPic (fmap (2*i*) arcAngle) (fmap ((2*i+1)*) arcAngle) radius
+                    | i <- [0..n-1]
+                    ]
+                  -- [ arcPic (0*arcAngle) (1*arcAngle) radius
+                  -- , arcPic (2*arcAngle) (3*arcAngle) radius
+                  -- , arcPic (4*arcAngle) (5*arcAngle) radius
+                  -- ]
+  where
+    arcAngle = Radians (pi / n)
+    n = 6
+    radius = pillarRadius + 16
 
 render :: [Vec World] -> Picture -> (RenderData ~> Picture)
-render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook) -> do
+render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook selectedPillar) -> do
   -- Render pillars.
   let pillarsPic = pictures
        [ color white $ translatePic pillarPos (circleSolidPic pillarRadius)
        | pillarPos <- pillars]
+  let pillarHighlightPic
+        = maybeToPic (selectedPillar <&> \pos -> translatePic pos pillarHighlighter)
 
   -- Render player.
   (playerPic, tracePic) <- renderPlayer      -< (pos, rot, accelerating)
@@ -48,7 +65,7 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook) -
 
   returnA -< pictures
     $ stars : map (applyViewPort viewPort)
-      [trackPic, pillarsPic, tracePic, thrusterPic, hookPic, playerPic]
+      [trackPic, pillarsPic, pillarHighlightPic, tracePic, thrusterPic, hookPic, playerPic]
 
 --------------------------------------------------------------------------------
 -- Player.
@@ -76,20 +93,33 @@ playerTriangle pos heading
 
 traceDuration :: Double
 traceDuration = 3 -- seconds
-
+                
 renderPlayerTrace :: (Vec World, Angle) ~> Picture
 renderPlayerTrace = proc player -> do
-  now <- timePassed -< ()
-  history <- recentHistoryByTime traceDuration -< player
-  returnA -< pictures $ map fade $ relativePast now history
+  now <- timePassed -< ()                      
+  pastPositions <- recentHistoryByTime traceDuration -< fst player
+  returnA -< positionsToPicture (relativePast now pastPositions)
+                   
+  -- now <- timePassed -< ()
+  -- history <- recentHistoryByTime traceDuration -< player
+  -- returnA -< pictures $ map fade $ relativePast now history
   where 
+    positionsToPicture :: [(Vec World,Time)] -> Picture
+    positionsToPicture [] = blank
+    positionsToPicture positions = pictures
+      [ color (segmentColor t) (linePic [p1,p2])
+      | ((p2,t),(p1,_)) <- zip positions (tail positions)]
+
+    segmentColor :: Time -> Color
+    segmentColor t = makeColor 1 0 0 (realToFrac $ 0.5 - t / (traceDuration*2))
+
     relativePast :: Time -> [(a,Time)] -> [(a,Time)]
     relativePast now xts = [(x, now - t) | (x, t) <- xts]
 
-    fade :: ((Vec World, Angle), Time) -> Picture
-    fade ((pos, angle), t)
-      = color (makeColor 1 0 0 (realToFrac $ 0.2 - t / (traceDuration*2)))
-      $ playerTriangle pos angle
+  --   fade :: ((Vec World, Angle), Time) -> Picture
+  --   fade ((pos, angle), t)
+  --     = color (makeColor 1 0 0 (realToFrac $ 0.2 - t / (traceDuration*2)))
+  --     $ playerTriangle pos angle
         
 
 -- t = 0        -> 0.5
