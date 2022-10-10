@@ -43,6 +43,17 @@ circlePic radius = circle (realToFrac radius)
 
 circleSolidPic :: Double -> Picture
 circleSolidPic radius = circleSolid (realToFrac radius)
+
+thickLineSegmentPic :: Double -> Vec w -> Vec w -> Picture
+thickLineSegmentPic thickness start end
+  = polygonPic [ start ^+^ offset
+               , start ^-^ offset
+               , end ^-^ offset
+               , end ^+^ offset
+               ]
+  where
+    offset = (thickness / 2) *^ perp (normalize (end ^-^ start))
+    
                         
 -- maybeToPic :: (a -> Picture) -> Maybe a -> Picture
 -- maybeToPic render (Just a) = render a

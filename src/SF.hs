@@ -5,6 +5,7 @@ module SF
   ) where
 
 --------------------------------------------------------------------------------
+import Angle
 import Vec
 import Util
 
@@ -149,6 +150,16 @@ clampedIntegralFrom :: (Vec w,Vec w) -> Vec w -> (Vec w ~> Vec w)
 clampedIntegralFrom bounds v0 = stateful v0 step
   where step dt v acc = clampVec bounds (acc ^+^ dt*^v)
 
+cyclicIntegral :: (VectorSpace v, Scalar v ~ Time) => v -> Scalar v -> (PerSecond v ~> v)
+cyclicIntegral v0 boundary = stateful v0 step 
+  where step dt v acc = let v' = acc ^+^ frameDelta v dt
+                        in if norm v' > boundary then v0 else v'
+                           
+rotator :: Radians Double -> Radians Double ~> Radians Double
+rotator theta0 = stateful' theta0 step 
+  where step dTheta theta = let theta' = theta ^+^ dTheta
+                            in if theta' > 2*^pi then theta' - 2*^pi else theta'
+
 recentHistory :: Int -> (a ~> [a])
 recentHistory nFrames = stateful [] $ \_ a as -> take nFrames (a:as)
 
@@ -162,6 +173,9 @@ recentHistoryByTime duration = fst ^<< stateful ([],0) f
   where
     f dt x (xts, t) = let t' = t+dt in (takeWhile (recent t') ((x,t'):xts), t')
     recent t (_, tx) = tx > t - duration
+                       
+recentHistoryTakeWhile :: (a -> Bool) -> (a ~> [a])
+recentHistoryTakeWhile p = stateful' [] (\a as -> takeWhile p (a:as))
   
 --   = recentHistory (ceiling $ historyDuration / frameInterval)
 

@@ -40,10 +40,6 @@ pillarHighlighter = color white $ pictures
                     [arcPic (fmap (2*i*) arcAngle) (fmap ((2*i+1)*) arcAngle) radius
                     | i <- [0..n-1]
                     ]
-                  -- [ arcPic (0*arcAngle) (1*arcAngle) radius
-                  -- , arcPic (2*arcAngle) (3*arcAngle) radius
-                  -- , arcPic (4*arcAngle) (5*arcAngle) radius
-                  -- ]
   where
     arcAngle = Radians (pi / n)
     n = 6
@@ -55,8 +51,11 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook se
   let pillarsPic = pictures
        [ color white $ translatePic pillarPos (circleSolidPic pillarRadius)
        | pillarPos <- pillars]
+  dt <- timeDelta -< ()
+  pillarHighlightRot <- rotator (Radians 0) -< Radians (0.5 * dt)
   let pillarHighlightPic
-        = maybeToPic (selectedPillar <&> \pos -> translatePic pos pillarHighlighter)
+        = maybeToPic (selectedPillar <&> \pos ->
+                        translatePic pos (rotatePic pillarHighlightRot pillarHighlighter))
 
   -- Render player.
   (playerPic, tracePic) <- renderPlayer      -< (pos, rot, accelerating)
@@ -92,7 +91,7 @@ playerTriangle pos heading
     $ map ((^+^ pos) . rotVec heading) (isoscelesTriangle 28 46)
 
 traceDuration :: Double
-traceDuration = 3 -- seconds
+traceDuration = 1.5 -- seconds
                 
 renderPlayerTrace :: (Vec World, Angle) ~> Picture
 renderPlayerTrace = proc player -> do
@@ -105,13 +104,23 @@ renderPlayerTrace = proc player -> do
   -- returnA -< pictures $ map fade $ relativePast now history
   where 
     positionsToPicture :: [(Vec World,Time)] -> Picture
+    -- positionsToPicture = pictures . map mkCirclePic
     positionsToPicture [] = blank
     positionsToPicture positions = pictures
-      [ color (segmentColor t) (linePic [p1,p2])
+      [ color (segmentColor t) (thickLineSegmentPic (maxRadius * (traceDuration - t) / traceDuration) p1 p2)
       | ((p2,t),(p1,_)) <- zip positions (tail positions)]
+                         
+    mkCirclePic :: (Vec World, Time) -> Picture
+    mkCirclePic (pos,t) = color circleColor (translatePic pos (circleSolidPic radius))
+      where
+        circleColor = segmentColor t
+        radius = maxRadius * (traceDuration - t) / traceDuration
+                     
+    maxRadius :: Double
+    maxRadius = 8
 
     segmentColor :: Time -> Color
-    segmentColor t = makeColor 1 0 0 (realToFrac $ 0.5 - t / (traceDuration*2))
+    segmentColor t = makeColor 1 0 0 (realToFrac $ 1 - t / traceDuration)
 
     relativePast :: Time -> [(a,Time)] -> [(a,Time)]
     relativePast now xts = [(x, now - t) | (x, t) <- xts]
