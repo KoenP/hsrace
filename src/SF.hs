@@ -75,6 +75,10 @@ sfTrace = arr (\a -> traceShow a a)
 --------
 delay :: a -> (a ~> a)
 delay a0 = SF $ \(_,a) -> (a0, delay a)
+           
+-- | Delays the stream 0,1,2,3... to 0,0,1,2,3,...
+delayedDelay :: a ~> a
+delayedDelay = SF $ \(_,a) -> (a, delay a)
 
 -- delayMany :: [b] -> (a ~> b) -> (a ~> b)
 -- delayMany bs sf = foldr delay sf bs
@@ -104,10 +108,16 @@ risingEdge :: Bool ~> Bool
 risingEdge = (&&) <$> fmap not (delay False) <*> id
 
 cumsumFrom :: VectorSpace v => v -> (v ~> v)
-cumsumFrom v0 = stateful v0 (const (^+^))
+cumsumFrom v0 = stateful' v0 (^+^)
 
 cumsum :: VectorSpace v => (v ~> v)
 cumsum = cumsumFrom zeroVec
+
+numcumsumFrom :: Num a => a -> (a ~> a)
+numcumsumFrom a0 = stateful' a0 (+)
+
+numcumsum :: Num a => (a ~> a)
+numcumsum = numcumsumFrom 0
 
 clock :: () ~> Double
 clock = timeDelta >>> cumsum
@@ -142,9 +152,6 @@ integralFrom v0 = stateful v0 step
 
 integral :: (VectorSpace v, Scalar v ~ Time) => PerSecond v ~> v
 integral = integralFrom zeroVec
-
-timePassed :: () ~> Time
-timePassed = constant (PerSecond 1) >>> integral
 
 clampedIntegralFrom :: (Vec w,Vec w) -> Vec w -> (Vec w ~> Vec w)
 clampedIntegralFrom bounds v0 = stateful v0 step

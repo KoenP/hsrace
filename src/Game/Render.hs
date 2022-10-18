@@ -95,11 +95,10 @@ traceDuration = 1.5 -- seconds
                 
 renderPlayerTrace :: (Vec World, Angle) ~> Picture
 renderPlayerTrace = proc player -> do
-  now <- timePassed -< ()                      
+  now <- clock -< ()                      
   pastPositions <- recentHistoryByTime traceDuration -< fst player
   returnA -< positionsToPicture (relativePast now pastPositions)
                    
-  -- now <- timePassed -< ()
   -- history <- recentHistoryByTime traceDuration -< player
   -- returnA -< pictures $ map fade $ relativePast now history
   where 

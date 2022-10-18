@@ -1,6 +1,7 @@
 module Game where
 
 --------------------------------------------------------------------------------
+import Angle ( Angle )
 import Vec
     ( (<->),
       clamp,
@@ -14,7 +15,8 @@ import Vec
       Vec(Vec),
       VectorSpace(norm, (^-^), zeroVec, normalize, (*^), (^+^)),
       ViewPort(ViewPort),
-      World )
+      World,
+      Window )
 import Input
     ( changeMode,
       keyDown,
@@ -28,7 +30,9 @@ import SF
       Category((.)),
       averageRecentHistory,
       clock,
+      numcumsum,
       delay,
+      delayedDelay,
       frameDelta,
       integralFrom,
       runMode,
@@ -36,7 +40,6 @@ import SF
       stateful,
       stateful',
       timeDelta,
-      timePassed,
       sampleOnChange,
       updateOnJust,
       Mode(Mode),
@@ -55,8 +58,10 @@ import Game.Types ( Hook(..) )
 import Graphics.Gloss ( white, color, pictures, scale, text )
 
 import Prelude hiding ((.), id)
+import Data.Functor ( ($>) )
 import Data.Maybe ( fromMaybe )
 import Control.Applicative ( Alternative((<|>)) )
+import Control.Monad ( guard )
 --------------------------------------------------------------------------------
 
 -- k_acceleration, k_drag, k_hookSpeed :: Double
@@ -76,8 +81,8 @@ hookSpeedPS    = PerSecond 4000
 -- | Computes the behavior of the hook, based on a (static) list of
 -- pillars, and (dynamic) start position, currently selected pillar,
 -- and a boolean indicating whether the hook should be launched.
-hook :: [Pillar] -> (Vec World, Maybe (Vec World), Bool) ~> Hook
-hook pillars = runMode noHookMode
+hook :: (Vec World, Maybe (Vec World), Bool) ~> Hook
+hook = runMode noHookMode
   where
     noHookMode :: Mode (Vec World, Maybe (Vec World), Bool) Hook
     noHookMode = Mode $ arr $ \(startPos, goal, launchHook) ->
@@ -127,79 +132,107 @@ velocitySF = stateful (PerSecond zeroVec, Nothing) step
             tether = spanTether dPos hook vel
         in (PerSecond (fromMaybe vel tether), tether)
            
+data PlayerInputs = PlayerInputs
+  { _pi_accelerating    :: Bool
+  , _pi_launchHook      :: Bool
+  , _pi_cursorWindowPos :: Vec Window
+  , _pi_selectedPillar  :: Maybe (Vec World)
+  }
+data PlayerOutputs
+  = PlayerOutputs { _po_position :: Vec World 
+                  , _po_rotation :: Angle
+                  , _po_velocity :: PerSecond (Vec World)
+                  , _po_alive    :: Bool
+                  , _po_hook     :: Hook
+                  }
+playerAliveMode :: (Vec World -> Bool) -> Vec World -> Mode PlayerInputs PlayerOutputs
+playerAliveMode onRoad pos0
+  = Mode $ proc input -> do
+      rec
+        let
+          rotation              = vecAngle (_pi_cursorWindowPos input)
+          thrust | _pi_accelerating input = rotVec rotation . Vec 0 <$> accelerationPS
+                 | otherwise              = PerSecond zeroVec
+      
+        dPosition <- delay pos0 -< position
+        dVelocity <- delay zeroVec -< velocity
+        hook      <- hook
+          -< (dPosition, _pi_selectedPillar input, _pi_launchHook input) -- (input, dPosition, fromPolar k_hookSpeed rotation)
+        let dSpeed = norm dVelocity
+        
+        let dragFactor = 0 -- if onRoad dPosition then k_drag else k_dragOffroad
+        let drag = (- dragFactor * dSpeed ** 2) *^ normalize dVelocity
+        (velocity, _tether) <- velocitySF -< (dPosition, thrust ^+^ drag, hook)
+        position <- integralFrom pos0 -< velocity
+
+      let deadMode = guard (not (onRoad position)) $> playerDeadMode position
+      returnA -< (deadMode, PlayerOutputs position rotation velocity True hook)
+              
+playerDeadMode :: Vec World -> Mode PlayerInputs PlayerOutputs
+playerDeadMode = undefined
+
+lapCount :: ((Vec World, Vec World) -> Int) -> (Vec World ~> Int)
+lapCount lapBoundaryFn
+  = proc pos -> do
+      dPos <- delayedDelay -< pos
+      realLap <- numcumsum -< lapBoundaryFn (dPos, pos)
+      stateful' 0 max -< realLap -- return the highest lap so far
+    
 -- | Main game loop.
 game :: Game
-game switchTo (GameTrack onRoad pillars trackPic crossesLapBoundary) =
-  Mode $ proc input -> do
-    -- Switch to editor mode.
-    changeMode_ <- changeMode switchTo -< input
+game switchTo (GameTrack onRoad pillars trackPic lapBoundaryFn)
+  = Mode $ proc input -> do 
+      -- Switch to editor mode.
+      changeMode_ <- changeMode switchTo -< input
+      let cursorWindowPos = _input_cursorPos input
+          keyDown' key    = keyDown key input
 
-    -- Orient the player.
-    let cursorPos = _input_cursorPos input
+      rec 
+        dCursorWorldPos <- delay zeroVec -< cursorWorldPos
+        let selectedPillar = selectPillar pillars dCursorWorldPos
+            accelerating = keyDown' Accelerating
+            launchHook = keyDown' LaunchHook
+        PlayerOutputs position rotation velocity alive hook
+          <- runMode (playerAliveMode onRoad (Vec 0 30))
+          -< PlayerInputs accelerating launchHook cursorWindowPos selectedPillar
+         -- Calculate viewport and cursor world position.
+        avgSpeed :: Double <- averageRecentHistory 120 -< norm velocity
 
-    -- Keep track of time.
-    timePassed_ <- timePassed -< ()
+        let
+          (zoomMin, zoomMax) = (0.3, 0.3) -- (0.2, 1)
+          zoom               = clamp (zoomMin, zoomMax) $ lerp zoomMax zoomMin (avgSpeed / 500)
+          viewPort           = ViewPort position 0 zoom
+          cursorWorldPos     = windowCoordsToWorldCoords viewPort cursorWindowPos
+
+      currentLap <- lapCount lapBoundaryFn -< position
+      returnA -< undefined
+
+  --   newLap <- sampleOnChange 0 -< highestLapSoFar
+  --   lapTimes
+  --     <- updateOnJust [] (\lts newTime -> lts ++ [newTime])
+  --     -< timePassed_ <$ newLap
+
+      timePassed <- clock -< ()
+      let 
+        clockPic = translatePic (Vec (-20) 0)
+                   $ text (minutesSecondsCentiseconds timePassed)
+        wsize    = _input_windowSize input
+        lapsPic  = fromWindowLeft wsize 10 (text (show currentLap))
+        overlay  = fromWindowTop wsize 70 $ color white $ Graphics.Gloss.scale 0.5 0.5
+                   $ pictures [clockPic, lapsPic]
+                   
+      pic <- render pillars trackPic
+        -< RenderData
+             { _rd_viewPort       = viewPort
+             , _rd_playerPos      = position
+             , _rd_playerRot      = rotation
+             , _rd_accelerating   = accelerating
+             , _rd_hook           = hook
+             , _rd_selectedPillar = selectedPillar
+             }
       
-    -- Position and heading.
-    let accelerating = keyDown Accelerating input
-    rec
-      let
-        rotation = vecAngle cursorPos
-        thrust | accelerating = rotVec rotation . Vec 0 <$> accelerationPS
-               | otherwise    = PerSecond zeroVec
-      
-      dPosition <- delay zeroVec -< position
-      dVelocity <- delay zeroVec -< velocity
-      dCursorWorldPos <- delay zeroVec -< cursorWorldPos
-      let selectedPillar = selectPillar pillars dCursorWorldPos
-      hook      <- hook pillars
-        -< (dPosition, selectedPillar, keyDown LaunchHook input) -- (input, dPosition, fromPolar k_hookSpeed rotation)
-      let dSpeed = norm dVelocity
-      
-      let dragFactor = 0 -- if onRoad dPosition then k_drag else k_dragOffroad
-      let drag = (- dragFactor * dSpeed ** 2) *^ normalize dVelocity
-      (velocity, _tether) <- velocitySF -< (dPosition, thrust ^+^ drag, hook)
-      position <- integralFrom (Vec 0 30) -< velocity
-
-      -- Calculate viewport and cursor world position.
-      avgSpeed :: Double <- averageRecentHistory 120 -< norm velocity
-
-      let
-        (zoomMin, zoomMax) = (0.3, 0.3) -- (0.2, 1)
-        zoom               = clamp (zoomMin, zoomMax) $ lerp zoomMax zoomMin (avgSpeed / 500)
-        viewPort           = ViewPort position 0 zoom
-        cursorWorldPos     = windowCoordsToWorldCoords viewPort cursorPos
-                             
-    -- Keep track of which lap the player is on.
-    currentLap :: Int
-      <- stateful' 0 (\segment curlap -> curlap + crossesLapBoundary segment )
-      -< (dPosition, position)
-    highestLapSoFar <- stateful' 0 max -< currentLap
-    newLap <- sampleOnChange 0 -< highestLapSoFar
-    lapTimes
-      <- updateOnJust [] (\lts newTime -> lts ++ [newTime])
-      -< timePassed_ <$ newLap
-
-    let 
-      clockPic = translatePic (Vec (-20) 0)
-                 $ text (minutesSecondsCentiseconds timePassed_)
-      wsize    = _input_windowSize input
-      lapsPic  = fromWindowLeft wsize 10 (text (show highestLapSoFar))
-      overlay  = fromWindowTop wsize 70 $ color white $ Graphics.Gloss.scale 0.5 0.5
-                 $ pictures [clockPic, lapsPic]
-                 
-    pic <- render pillars trackPic
-      -< RenderData
-           { _rd_viewPort       = viewPort
-           , _rd_playerPos      = position
-           , _rd_playerRot      = rotation
-           , _rd_accelerating   = accelerating
-           , _rd_hook           = hook
-           , _rd_selectedPillar = selectedPillar
-           }
-    
-    returnA -<
-      ( changeMode_
-      , Output (pictures [pic, overlay]) Nothing
-      )
+      returnA -<
+        ( changeMode_
+        , Output (pictures [pic, overlay]) Nothing
+        )
 
