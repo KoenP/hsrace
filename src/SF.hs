@@ -15,6 +15,7 @@ import Control.Applicative
 import Control.Arrow
 import Debug.Trace
 import Data.Bool
+import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Bifunctor as Bifunctor
@@ -22,7 +23,7 @@ import qualified Data.Bifunctor as Bifunctor
 
 type Time = Double
 
-newtype a ~> b = SF { unSF :: (Time,a) -> (b, a ~> b) }
+newtype a ~> b = SF { unSF :: (Time, a) -> (b, a ~> b) }
 
 instance Functor ((~>) a) where
   fmap f (SF sf) = SF $ \dta -> let (b, sf') = sf dta in (f b, fmap f sf')
@@ -302,10 +303,17 @@ sparseUpdater map0 = fmap fst <$> stateful map0 step
       >>> mapInsertMany newSFs
       >>> mapAdjustMany (map (Bifunctor.second (applyInput dt)) addressedInputs)
 
--- grid :: (w -> [Vec u]) -> (i -> Vec u) -> ([id], [(id,i ~> w)], i) ~> [w]
--- grid = undefined
-
-
+-- | Keeps track of an ID map, applying deletes and overwrite-updates on each tick.
+applyMapUpdatesAndDeletesSF :: Ord id => ([id], [(id, a)]) ~> Map id a
+applyMapUpdatesAndDeletesSF = stateful' Map.empty step 
+  where
+    step (toDelete, updates) old =
+      let intermediate = foldl' (flip Map.delete) old toDelete
+      in foldl' (\m (id,a) -> Map.insert id a m) intermediate updates
+         
+-- | Keeps track of an ID map, applying overwrite-updates on each tick.
+applyMapUpdatesSF :: Ord id => [(id, a)] ~> Map id a
+applyMapUpdatesSF = applyMapUpdatesAndDeletesSF <<^ ([],)
 
 -- Events
 ---------

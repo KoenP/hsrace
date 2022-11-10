@@ -16,6 +16,8 @@ import Data.List
 import Data.Functor
 import System.Random
 import Debug.Trace
+
+import Control.Monad
 --------------------------------------------------------------------------------
 
 data RenderData = RenderData
@@ -25,6 +27,7 @@ data RenderData = RenderData
   , _rd_accelerating   :: Bool
   , _rd_hook           :: Hook
   , _rd_selectedPillar :: Maybe (Vec World)
+  , _rd_playerAlive    :: Bool
   }
                 
 stars :: Picture
@@ -46,7 +49,7 @@ pillarHighlighter = color white $ pictures
     radius = pillarRadius + 16
 
 render :: [Vec World] -> Picture -> (RenderData ~> Picture)
-render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook selectedPillar) -> do
+render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook selectedPillar playerAlive) -> do
   -- Render pillars.
   let pillarsPic = pictures
        [ color white $ translatePic pillarPos (circleSolidPic pillarRadius)
@@ -58,97 +61,65 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook se
                         translatePic pos (rotatePic pillarHighlightRot pillarHighlighter))
 
   -- Render player.
-  (playerPic, tracePic) <- renderPlayer      -< (pos, rot, accelerating)
-  thrusterPic           <- thrusterAnimation -< (pos, rot, accelerating)
+  playerPic <- renderPlayer      -< (pos, rot, accelerating, playerAlive)
   let hookPic = renderHook pos hook 
+
+  tracePic    <- renderPlayerTrace -< pos <$ guard playerAlive
 
   returnA -< pictures
     $ stars : map (applyViewPort viewPort)
-      [trackPic, pillarsPic, pillarHighlightPic, tracePic, thrusterPic, hookPic, playerPic]
+      [trackPic, pillarsPic, pillarHighlightPic, tracePic, hookPic, playerPic]
 
 --------------------------------------------------------------------------------
 -- Player.
 
-renderPlayer :: (Vec World, Angle, Bool) ~> (Picture, Picture)
-renderPlayer = proc (pos, heading, thrusterOn) -> do
-  let triangle = map ((^+^ pos) . rotVec heading) (isoscelesTriangle 28 46)
-  -- trace <- recentHistory 10 -< triangle
-  let playerPic = color red (polygonPic triangle)
-  tracePic <- renderPlayerTrace -< (pos, heading)
-  -- let
-  --   -- TODO inefficient
-  --   interpolatedTrace = map polygonPic $ concat
-  --                     $ zipWith (interpolatePolys 4) trace (safeTail trace)
-  --   (r,g,b,_)         = rgbaOfColor red
-  --   alphas            = map (\n -> 1 / fromIntegral n) [1..length interpolatedTrace]
-  --   colors            = [makeColor r g b a | a <- alphas]
-    -- tracePic          = pictures $ zipWith color colors interpolatedTrace
-  returnA -< (playerPic, tracePic)
+renderPlayer :: (Vec World, Angle, Bool, Bool) ~> Picture
+renderPlayer = runMode renderAlive
+  where 
+    renderAlive :: Mode (Vec World, Angle, Bool, Bool) Picture
+    renderAlive = Mode $ proc (pos, rot, thrusterOn, alive) -> do
+                    let triangle = map ((^+^ pos) . rotVec rot) (isoscelesTriangle 28 46)
+                    let playerPic = color red (polygonPic triangle)
+                    thrusterPic <- thrusterAnimation -< (pos, rot, thrusterOn)
+                    let switchMode = guard (not alive) $> renderDead
+                    returnA -< (switchMode, pictures [thrusterPic, playerPic])
 
+    renderDead :: Mode (Vec World, Angle, Bool, Bool) Picture
+    renderDead = Mode $ proc _ -> do 
+                   timePassed <- clock -< ()
+                   let switchMode = guard (timePassed > 3) $> renderAlive
+                   returnA -< (switchMode, blank)
+                   
+                            
 playerTriangle :: Vec World -> Angle -> Picture
 playerTriangle pos heading
     = polygonPic
     $ map ((^+^ pos) . rotVec heading) (isoscelesTriangle 28 46)
 
 traceDuration :: Double
-traceDuration = 1.5 -- seconds
+traceDuration = 0.8 -- seconds
                 
-renderPlayerTrace :: (Vec World, Angle) ~> Picture
+renderPlayerTrace :: Maybe (Vec World) ~> Picture
 renderPlayerTrace = proc player -> do
   now <- clock -< ()                      
-  pastPositions <- recentHistoryByTime traceDuration -< fst player
+  pastPositions <- recentHistoryByTime traceDuration -< player
   returnA -< positionsToPicture (relativePast now pastPositions)
-                   
-  -- history <- recentHistoryByTime traceDuration -< player
-  -- returnA -< pictures $ map fade $ relativePast now history
   where 
-    positionsToPicture :: [(Vec World,Time)] -> Picture
-    -- positionsToPicture = pictures . map mkCirclePic
+    positionsToPicture :: [(Maybe (Vec World),Time)] -> Picture
     positionsToPicture [] = blank
     positionsToPicture positions = pictures
-      [ color (segmentColor t) (thickLineSegmentPic (maxRadius * (traceDuration - t) / traceDuration) p1 p2)
-      | ((p2,t),(p1,_)) <- zip positions (tail positions)]
+      [ color (segmentColor t) (thickLineSegmentPic (maxThickness * (traceDuration - t) / traceDuration) p1 p2)
+      | ((Just p2,t),(Just p1,_)) <- zip positions (tail positions)]
                          
-    mkCirclePic :: (Vec World, Time) -> Picture
-    mkCirclePic (pos,t) = color circleColor (translatePic pos (circleSolidPic radius))
-      where
-        circleColor = segmentColor t
-        radius = maxRadius * (traceDuration - t) / traceDuration
-                     
-    maxRadius :: Double
-    maxRadius = 8
+    maxThickness :: Double
+    maxThickness = 20
 
     segmentColor :: Time -> Color
-    segmentColor t = makeColor 1 0 0 (realToFrac $ 1 - t / traceDuration)
+    segmentColor t = makeColor 1 0 0 (realToFrac $ 0.5 - (t / (2*traceDuration)))
 
     relativePast :: Time -> [(a,Time)] -> [(a,Time)]
     relativePast now xts = [(x, now - t) | (x, t) <- xts]
 
-  --   fade :: ((Vec World, Angle), Time) -> Picture
-  --   fade ((pos, angle), t)
-  --     = color (makeColor 1 0 0 (realToFrac $ 0.2 - t / (traceDuration*2)))
-  --     $ playerTriangle pos angle
-        
-
--- t = 0        -> 0.5
--- t = duration -> 0
--- 0.5 - ((duration - t) / duration)
-
-{-
-
-
-*
- *
-  *
-   *
-
-x = 0 -> y = 0.5
-y = 0 -> x = 3
-
-rico = -0.5 / 3 = -1/6
-
-y = 0.5 - x/6
--}
 
 interpolatePolys :: Int -> [Vec w] -> [Vec w] -> [[Vec w]]
 interpolatePolys n vs ws = transpose $ zipWith f vs ws

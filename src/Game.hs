@@ -1,67 +1,24 @@
 module Game where
 
 --------------------------------------------------------------------------------
-import Angle ( Angle )
+import Angle 
 import Vec
-    ( (<->),
-      clamp,
-      internalAngle,
-      lerp,
-      perp,
-      projectOnto,
-      rotVec,
-      vecAngle,
-      windowCoordsToWorldCoords,
-      Vec(Vec),
-      VectorSpace(norm, (^-^), zeroVec, normalize, (*^), (^+^)),
-      ViewPort(ViewPort),
-      World,
-      Window )
 import Input
-    ( changeMode,
-      keyDown,
-      GameKey(LaunchHook, Accelerating),
-      Input(_input_cursorPos, _input_windowSize) )
-import Track ( GameTrack(GameTrack), Pillar )
+import Track 
 import SF
-    ( Arrow(arr),
-      (^<<),
-      returnA,
-      Category((.)),
-      averageRecentHistory,
-      clock,
-      numcumsum,
-      delay,
-      delayedDelay,
-      frameDelta,
-      integralFrom,
-      runMode,
-      sample,
-      stateful,
-      stateful',
-      timeDelta,
-      sampleOnChange,
-      updateOnJust,
-      Mode(Mode),
-      PerSecond(..),
-      type (~>) )
-import Types ( Game, Output(Output) )
-import Util ( minutesSecondsCentiseconds, translatePic, traceResult )
-import Grid ( closestNearby, mkGrid )
-import Overlay ( fromWindowLeft, fromWindowTop )
+import Types 
+import Util
+import Grid
+import Overlay 
 import Game.Render
-    ( render,
-      RenderData(RenderData, _rd_viewPort, _rd_playerPos, _rd_playerRot,
-                 _rd_accelerating, _rd_hook, _rd_selectedPillar) )
-import Game.Types ( Hook(..) )
-
-import Graphics.Gloss ( white, color, pictures, scale, text )
+import Game.Types
+import Graphics.Gloss 
 
 import Prelude hiding ((.), id)
-import Data.Functor ( ($>) )
-import Data.Maybe ( fromMaybe )
-import Control.Applicative ( Alternative((<|>)) )
-import Control.Monad ( guard )
+import Data.Functor 
+import Data.Maybe 
+import Control.Applicative
+import Control.Monad
 --------------------------------------------------------------------------------
 
 -- k_acceleration, k_drag, k_hookSpeed :: Double
@@ -77,6 +34,8 @@ accelerationPS = PerSecond 500
 dragPS         = PerSecond 0
 hookSpeedPS    = PerSecond 4000
 
+respawnTime :: Time
+respawnTime = 3
 
 -- | Computes the behavior of the hook, based on a (static) list of
 -- pillars, and (dynamic) start position, currently selected pillar,
@@ -165,17 +124,21 @@ playerAliveMode onRoad pos0
         (velocity, _tether) <- velocitySF -< (dPosition, thrust ^+^ drag, hook)
         position <- integralFrom pos0 -< velocity
 
-      let deadMode = guard (not (onRoad position)) $> playerDeadMode position
+      let deadMode = guard (not (onRoad position)) $> playerDeadMode onRoad position
       returnA -< (deadMode, PlayerOutputs position rotation velocity True hook)
               
-playerDeadMode :: Vec World -> Mode PlayerInputs PlayerOutputs
-playerDeadMode = undefined
+playerDeadMode :: (Vec World -> Bool) -> Vec World -> Mode PlayerInputs PlayerOutputs
+playerDeadMode onRoad position
+  = Mode $ proc _ -> do
+      timeLeft :: Time <- integralFrom 3 -< PerSecond (-1)
+      let aliveMode = guard (timeLeft <= 0) $> playerAliveMode onRoad (Vec 0 30)
+      returnA -< (aliveMode, PlayerOutputs position 0 zeroVec False NoHook)
 
-lapCount :: ((Vec World, Vec World) -> Int) -> (Vec World ~> Int)
+lapCount :: ((Vec World, Vec World) -> Int) -> (Maybe (Vec World) ~> Int)
 lapCount lapBoundaryFn
   = proc pos -> do
       dPos <- delayedDelay -< pos
-      realLap <- numcumsum -< lapBoundaryFn (dPos, pos)
+      realLap <- numcumsum -< fromMaybe 0 (liftA2 (curry lapBoundaryFn) dPos pos)
       stateful' 0 max -< realLap -- return the highest lap so far
     
 -- | Main game loop.
@@ -204,7 +167,7 @@ game switchTo (GameTrack onRoad pillars trackPic lapBoundaryFn)
           viewPort           = ViewPort position 0 zoom
           cursorWorldPos     = windowCoordsToWorldCoords viewPort cursorWindowPos
 
-      currentLap <- lapCount lapBoundaryFn -< position
+      currentLap <- lapCount lapBoundaryFn -< position <$ guard alive
       returnA -< undefined
 
   --   newLap <- sampleOnChange 0 -< highestLapSoFar
@@ -229,6 +192,7 @@ game switchTo (GameTrack onRoad pillars trackPic lapBoundaryFn)
              , _rd_accelerating   = accelerating
              , _rd_hook           = hook
              , _rd_selectedPillar = selectedPillar
+             , _rd_playerAlive    = alive
              }
       
       returnA -<
