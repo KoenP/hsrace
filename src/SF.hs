@@ -13,12 +13,16 @@ import Prelude hiding ((.), id)
 import Control.Category
 import Control.Applicative
 import Control.Arrow
+import Control.Monad
 import Debug.Trace
 import Data.Bool
+import Data.Functor
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Bifunctor as Bifunctor
+import Data.Serialize (Serialize)
+import GHC.Generics (Generic)
 --------------------------------------------------------------------------------
 
 type Time = Double
@@ -80,6 +84,21 @@ delay a0 = SF $ \(_,a) -> (a0, delay a)
 -- | Delays the stream 0,1,2,3... to 0,0,1,2,3,...
 delayedDelay :: a ~> a
 delayedDelay = SF $ \(_,a) -> (a, delay a)
+               
+-- | Delay a signal by a given amount of time.
+--   TODO: current implementation is slow, should use a better data structure than a list.
+delayBy :: forall a. Time -> a -> (a ~> a)
+delayBy t a0 = switch replaySignal holdSignal
+  where 
+    holdSignal :: a ~> (Maybe [a], a)
+    holdSignal = proc a -> do 
+      timePassed <- clock -< ()
+      asReversed <- stateful' [] (:) -< a
+      let doSwitch = guard (timePassed >= t) $> reverse asReversed
+      returnA -< (doSwitch, a0)
+              
+    replaySignal :: [a] -> (a ~> a)
+    replaySignal history = head <$> stateful' (undefined:history) (\a (_:as) -> as ++ [a])
 
 -- delayMany :: [b] -> (a ~> b) -> (a ~> b)
 -- delayMany bs sf = foldr delay sf bs
@@ -126,7 +145,8 @@ clock = timeDelta >>> cumsum
 --------------------------------------------------------------------------------- Integration
 
 newtype PerSecond a = PerSecond { unPerSecond :: a }
-  deriving Functor
+  deriving (Show, Functor, Generic)
+instance Serialize a => Serialize (PerSecond a)
            
 instance Applicative PerSecond where
   pure                        = PerSecond 

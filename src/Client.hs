@@ -1,11 +1,15 @@
 module Client where
 
 --------------------------------------------------------------------------------
+import Types
+import Input
 import SF
 import Vec
+import Network.UpdateMsg
 --------------------------------------------------------------------------------
 
-data NetworkInput id = NetworkInput { _ni_playerPositions :: [(id, Vec World)] }
 
+clientSF :: (Input, WorldUpdateMsg playerId) ~> (Output, PlayerUpdateMsg)
+clientSF = proc (input, WorldUpdateMsg playerUpdates serverTime) -> do
 
--- client :: (NetworkInput, )
+  returnA -< undefined

@@ -1,12 +1,15 @@
 module Angle where
 
-import GHC.Generics
+import GHC.Generics ( Generic )
+import Data.Serialize ( Serialize )
 
 -- 0 rad points upwards
 -- rotation is clockwise
 
-newtype Radians a = Radians { _unRadians :: a } deriving (Show, Eq, Ord)
-newtype Degrees a = Degrees { _unDegrees :: a } deriving (Show, Eq, Ord)
+newtype Radians a = Radians { _unRadians :: a } deriving (Show, Eq, Ord, Generic)
+newtype Degrees a = Degrees { _unDegrees :: a } deriving (Show, Eq, Ord, Generic)
+instance Serialize a => Serialize (Radians a)
+instance Serialize a => Serialize (Degrees a)
   
 instance Functor Degrees where
   fmap f (Degrees x) = Degrees (f x)

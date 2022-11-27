@@ -21,13 +21,13 @@ import Control.Monad
 --------------------------------------------------------------------------------
 
 data RenderData = RenderData
-  { _rd_viewPort       :: ViewPort
-  , _rd_playerPos      :: Vec World
-  , _rd_playerRot      :: Angle
-  , _rd_accelerating   :: Bool
-  , _rd_hook           :: Hook
-  , _rd_selectedPillar :: Maybe (Vec World)
-  , _rd_playerAlive    :: Bool
+  { _rd_viewPort        :: ViewPort
+  , _rd_playerPoss      :: [Vec World]
+  , _rd_playerRots      :: [Angle]
+  , _rd_acceleratings   :: [Bool]
+  , _rd_hook            :: Hook
+  , _rd_selectedPillar  :: Maybe (Vec World)
+  , _rd_playerAlive     :: Bool
   }
                 
 stars :: Picture
@@ -49,7 +49,16 @@ pillarHighlighter = color white $ pictures
     radius = pillarRadius + 16
 
 render :: [Vec World] -> Picture -> (RenderData ~> Picture)
-render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook selectedPillar playerAlive) -> do
+render pillars trackPic =
+  proc (RenderData
+        viewPort
+        [pos0,pos1]
+        [rot0,rot1]
+        [accelerating0,accelerating1]
+        hook
+        selectedPillar
+        playerAlive) -> do
+
   -- Render pillars.
   let pillarsPic = pictures
        [ color white $ translatePic pillarPos (circleSolidPic pillarRadius)
@@ -60,15 +69,16 @@ render pillars trackPic = proc (RenderData viewPort pos rot accelerating hook se
         = maybeToPic (selectedPillar <&> \pos ->
                         translatePic pos (rotatePic pillarHighlightRot pillarHighlighter))
 
-  -- Render player.
-  playerPic <- renderPlayer      -< (pos, rot, accelerating, playerAlive)
-  let hookPic = renderHook pos hook 
+  -- Render players.
+  player0Pic <- renderPlayer      -< (pos0, rot0, accelerating0, playerAlive)
+  player1Pic <- renderPlayer      -< (pos1, rot1, accelerating1, playerAlive)
+  let hookPic = renderHook pos0 hook 
 
-  tracePic    <- renderPlayerTrace -< pos <$ guard playerAlive
+  tracePic    <- renderPlayerTrace -< pos0 <$ guard playerAlive
 
   returnA -< pictures
     $ stars : map (applyViewPort viewPort)
-      [trackPic, pillarsPic, pillarHighlightPic, tracePic, hookPic, playerPic]
+      [trackPic, pillarsPic, pillarHighlightPic, tracePic, hookPic, player0Pic, player1Pic]
 
 --------------------------------------------------------------------------------
 -- Player.

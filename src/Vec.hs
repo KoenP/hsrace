@@ -32,12 +32,15 @@ import Data.Functor ( ($>) )
 import Data.List ( foldl' )
 import Data.Coerce ( coerce )
 import Data.Maybe ( isJust )
+import GHC.Generics ( Generic )
+import Data.Serialize ( Serialize )
 -- import VectorSpace ( (^*), VectorSpace(..) )
 --------------------------------------------------------------------------------
 
 -- | The phantom type variable `w` keeps track of the coordinate system.
 data Vec w = Vec { _x :: !Double , _y :: !Double }
-  deriving (Eq, Ord, Show, Read)
+  deriving (Eq, Ord, Show, Read, Generic)
+instance Serialize (Vec w)
 
 infixl 6 ^+^
 infixl 6 ^-^

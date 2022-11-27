@@ -19,6 +19,7 @@ import Data.Functor
 import Data.Maybe 
 import Control.Applicative
 import Control.Monad
+import Network.UpdateMsg
 --------------------------------------------------------------------------------
 
 -- k_acceleration, k_drag, k_hookSpeed :: Double
@@ -142,11 +143,12 @@ lapCount lapBoundaryFn
       stateful' 0 max -< realLap -- return the highest lap so far
     
 -- | Main game loop.
-game :: Game
-game switchTo (GameTrack onRoad pillars trackPic lapBoundaryFn)
-  = Mode $ proc input -> do 
+game :: GameTrack -> ((Input, WorldUpdateMsg Int) ~> (Output, PlayerUpdateMsg, Bool))
+game (GameTrack onRoad pillars trackPic lapBoundaryFn)
+  = proc (input, WorldUpdateMsg playerUpdates serverTime) -> do 
       -- Switch to editor mode.
-      changeMode_ <- changeMode switchTo -< input
+      -- changeMode_ <- changeMode switchTo -< input
+      let [_,(1,updateMsg,_)] = playerUpdates 
       let cursorWindowPos = _input_cursorPos input
           keyDown' key    = keyDown key input
 
@@ -186,17 +188,18 @@ game switchTo (GameTrack onRoad pillars trackPic lapBoundaryFn)
                    
       pic <- render pillars trackPic
         -< RenderData
-             { _rd_viewPort       = viewPort
-             , _rd_playerPos      = position
-             , _rd_playerRot      = rotation
-             , _rd_accelerating   = accelerating
-             , _rd_hook           = hook
-             , _rd_selectedPillar = selectedPillar
-             , _rd_playerAlive    = alive
+             { _rd_viewPort        = viewPort
+             , _rd_playerPoss      = [position, _pu_pos updateMsg]
+             , _rd_playerRots      = [rotation, _pu_rot updateMsg]
+             , _rd_acceleratings   = [accelerating, _pu_accelerating updateMsg]
+             , _rd_hook            = hook
+             , _rd_selectedPillar  = selectedPillar
+             , _rd_playerAlive     = alive
              }
       
       returnA -<
-        ( changeMode_
-        , Output (pictures [pic, overlay]) Nothing
+        ( Output (pictures [pic, overlay]) Nothing
+        , PlayerUpdateMsg position velocity rotation accelerating
+        , keyTriggered ChangeMode input
         )
 

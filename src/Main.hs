@@ -8,10 +8,15 @@ import Editor
 import SF
 import Vec
 import Types
+import Server
+import Client
+import Network.UpdateMsg
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
 
+import Control.Monad
+import Data.Functor
 import Prelude hiding ((.), id)
 import System.Environment
 import Debug.Trace
@@ -20,7 +25,23 @@ import Debug.Trace
 main :: IO ()
 main = do
   editorInit <- readTrackSaveData
-  runSF $ runMode $ editor editorInit game
+  runSF $ runMode $ editor editorInit mockClientServer
+        
+mockClientServer :: Game
+mockClientServer switchTo track = gameMode
+  where 
+    gameMode = Mode $ proc input -> do 
+      rec
+        player1UpdateMsg <- delayBy 1 nullMsg  -< player0UpdateMsg
+        updateMsg <- serverSF <<< delay (ServerInput [0 :: Int, 1] [])
+                  -< ServerInput [] [(0, player0UpdateMsg), (1, player1UpdateMsg)]
+        (output, player0UpdateMsg, switchToEditor) <- game track -< (input, updateMsg)
+        let modeSwitch = guard switchToEditor $> switchTo
+      returnA -< (modeSwitch, output)
+              
+    nullMsg = PlayerUpdateMsg zeroVec zeroVec 0 False
+              
+
         
 readTrackSaveData :: IO (TrackSaveData, FilePath)
 readTrackSaveData = do 
